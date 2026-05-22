@@ -169,3 +169,17 @@ export interface InvoiceHistoryUpdate {
   payment_terms: string | null
   line_items: LineItem[]
 }
+
+export type InvoiceSource =
+  | {
+      kind: "file"
+      file: File
+      previewUrl: string
+      fileName: string
+      mimeType: string
+    }
+  | {
+      kind: "text"
+      text: string
+      label: string
+    }

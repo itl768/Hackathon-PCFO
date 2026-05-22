@@ -3,12 +3,14 @@
 import { Upload, FileText, Sparkles } from "lucide-react"
 import { useCallback, useEffect, useRef, useState } from "react"
 
-import type { SampleInvoice } from "@/lib/invoice-types"
+import type { InvoiceSource, SampleInvoice } from "@/lib/invoice-types"
+import { sourceFromFile, sourceFromText } from "@/lib/invoice-source"
 import { shortenFileName } from "@/lib/utils"
 
 interface FileUploadProps {
   samples: SampleInvoice[]
   onProcess: (payload: { file?: File; text?: string }) => void
+  onSourceChange?: (source: InvoiceSource | null) => void
   isProcessing: boolean
   clearUploadKey?: number
 }
@@ -16,6 +18,7 @@ interface FileUploadProps {
 export function FileUpload({
   samples,
   onProcess,
+  onSourceChange,
   isProcessing,
   clearUploadKey = 0,
 }: FileUploadProps) {
@@ -34,23 +37,31 @@ export function FileUpload({
     }
   }, [clearUploadKey])
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
-    const file = e.dataTransfer.files[0]
-    if (file) {
-      setSelectedFile(file)
-      setMode("upload")
-    }
-  }, [])
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      setDragOver(false)
+      const file = e.dataTransfer.files[0]
+      if (file) {
+        setSelectedFile(file)
+        setMode("upload")
+        onSourceChange?.(sourceFromFile(file))
+      }
+    },
+    [onSourceChange],
+  )
 
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setSelectedFile(file)
-      setMode("upload")
-    }
-  }, [])
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (file) {
+        setSelectedFile(file)
+        setMode("upload")
+        onSourceChange?.(sourceFromFile(file))
+      }
+    },
+    [onSourceChange],
+  )
 
   const handleSampleSelect = useCallback(
     (sampleId: string) => {
@@ -59,15 +70,18 @@ export function FileUpload({
         setPastedText(sample.text)
         setSelectedFile(null)
         setMode("paste")
+        onSourceChange?.(sourceFromText(sample.text, sample.name))
       }
     },
-    [samples],
+    [samples, onSourceChange],
   )
 
   const handleProcess = () => {
     if (mode === "upload" && selectedFile) {
+      onSourceChange?.(sourceFromFile(selectedFile))
       onProcess({ file: selectedFile })
     } else if (mode === "paste" && pastedText.trim()) {
+      onSourceChange?.(sourceFromText(pastedText))
       onProcess({ text: pastedText })
     }
   }
@@ -149,7 +163,11 @@ export function FileUpload({
       ) : (
         <textarea
           value={pastedText}
-          onChange={(e) => setPastedText(e.target.value)}
+          onChange={(e) => {
+            setPastedText(e.target.value)
+            const v = e.target.value.trim()
+            onSourceChange?.(v ? sourceFromText(v) : null)
+          }}
           placeholder="Paste invoice text here..."
           className="min-h-[140px] resize-none rounded-xl border bg-muted/20 p-3 text-sm focus:border-primary focus:outline-none"
         />

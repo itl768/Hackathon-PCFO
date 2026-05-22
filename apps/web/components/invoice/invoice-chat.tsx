@@ -126,7 +126,7 @@ export function InvoiceChat() {
                   }`}
                 >
                   {msg.role === "assistant" ? (
-                    <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <div className="prose prose-sm dark:prose-invert max-w-none text-foreground">
                       <ReactMarkdown>{msg.content || "..."}</ReactMarkdown>
                     </div>
                   ) : (

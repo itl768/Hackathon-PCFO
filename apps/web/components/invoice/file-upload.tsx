@@ -1,7 +1,7 @@
 "use client"
 
 import { Upload, FileText, Sparkles } from "lucide-react"
-import { useCallback, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 
 import type { InvoiceSource, SampleInvoice } from "@/lib/invoice-types"
 import { sourceFromFile, sourceFromText } from "@/lib/invoice-source"
@@ -12,6 +12,7 @@ interface FileUploadProps {
   onProcess: (payload: { file?: File; text?: string }) => void
   onSourceChange?: (source: InvoiceSource | null) => void
   isProcessing: boolean
+  clearUploadKey?: number
 }
 
 export function FileUpload({
@@ -19,6 +20,7 @@ export function FileUpload({
   onProcess,
   onSourceChange,
   isProcessing,
+  clearUploadKey = 0,
 }: FileUploadProps) {
   const [dragOver, setDragOver] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -26,25 +28,40 @@ export function FileUpload({
   const [mode, setMode] = useState<"upload" | "paste">("upload")
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOver(false)
-    const file = e.dataTransfer.files[0]
-    if (file) {
-      setSelectedFile(file)
-      setMode("upload")
-      onSourceChange?.(sourceFromFile(file))
+  useEffect(() => {
+    setSelectedFile(null)
+    setPastedText("")
+    setMode("upload")
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ""
     }
-  }, [onSourceChange])
+  }, [clearUploadKey])
 
-  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      setSelectedFile(file)
-      setMode("upload")
-      onSourceChange?.(sourceFromFile(file))
-    }
-  }, [onSourceChange])
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      setDragOver(false)
+      const file = e.dataTransfer.files[0]
+      if (file) {
+        setSelectedFile(file)
+        setMode("upload")
+        onSourceChange?.(sourceFromFile(file))
+      }
+    },
+    [onSourceChange],
+  )
+
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (file) {
+        setSelectedFile(file)
+        setMode("upload")
+        onSourceChange?.(sourceFromFile(file))
+      }
+    },
+    [onSourceChange],
+  )
 
   const handleSampleSelect = useCallback(
     (sampleId: string) => {

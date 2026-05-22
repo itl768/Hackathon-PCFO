@@ -1,6 +1,7 @@
 "use client"
 
 import { FileText, MessageSquare, History, RotateCcw, Pencil } from "lucide-react"
+import { ThemeToggle } from "@/components/theme-toggle"
 import { useCallback, useEffect, useState } from "react"
 
 import { AgentLog } from "@/components/invoice/agent-log"
@@ -46,6 +47,7 @@ export default function InvoicePage() {
   const [activeStepId, setActiveStepId] = useState<string | null>(null)
   const [source, setSource] = useState<InvoiceSource | null>(null)
   const [editInvoiceId, setEditInvoiceId] = useState<number | null>(null)
+  const [clearUploadKey, setClearUploadKey] = useState(0)
   useEffect(() => {
     fetchSamples().then(setSamples).catch(console.error)
   }, [])
@@ -98,6 +100,8 @@ export default function InvoicePage() {
       setActiveStepId(null)
       setIsProcessing(true)
 
+      let completed = false
+
       try {
         for await (const evt of streamProcessInvoice(payload)) {
           const data = evt.data as Record<string, unknown>
@@ -137,6 +141,7 @@ export default function InvoicePage() {
 
             case "final_report": {
               setReport(data as unknown as ProcessingReport)
+              completed = true
               break
             }
 
@@ -149,6 +154,9 @@ export default function InvoicePage() {
       } catch (err) {
         console.error("Process error:", err)
       } finally {
+        if (completed) {
+          setClearUploadKey((k) => k + 1)
+        }
         setIsProcessing(false)
         setActiveStepId(null)
       }
@@ -193,16 +201,18 @@ export default function InvoicePage() {
           />
         </div>
 
-        {tab === "process" && (
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
-          >
-            <RotateCcw className="h-3 w-3" />
-            Reset
-          </button>
-        )}
-        {tab !== "process" && <div className="w-20" />}
+        <div className="flex items-center gap-2">
+          <ThemeToggle />
+          {tab === "process" && (
+            <button
+              onClick={handleReset}
+              className="flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
+            >
+              <RotateCcw className="h-3 w-3" />
+              Reset
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Content */}
@@ -216,6 +226,7 @@ export default function InvoicePage() {
                 onProcess={handleProcess}
                 onSourceChange={handleSourceChange}
                 isProcessing={isProcessing}
+                clearUploadKey={clearUploadKey}
               />
             </div>
 

@@ -5,18 +5,15 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { useCallback, useEffect, useState } from "react"
 
 import { AgentLog } from "@/components/invoice/agent-log"
-import { DocumentPreview } from "@/components/invoice/document-preview"
 import { FileUpload } from "@/components/invoice/file-upload"
 import { InvoiceChat } from "@/components/invoice/invoice-chat"
 import { PipelineVisualizer } from "@/components/invoice/pipeline-visualizer"
 import { InvoiceEditDrawer } from "@/components/invoice/invoice-edit-drawer"
 import { ResultsPanel } from "@/components/invoice/results-panel"
 import { fetchHistory, fetchSamples, streamProcessInvoice } from "@/lib/invoice-api"
-import { revokeSourcePreview } from "@/lib/invoice-source"
 import type {
   AgentLogEntry,
   HistoryEntry,
-  InvoiceSource,
   PipelineStep,
   PipelineStepState,
   ProcessingReport,
@@ -45,7 +42,6 @@ export default function InvoicePage() {
   const [agentLog, setAgentLog] = useState<AgentLogEntry[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [activeStepId, setActiveStepId] = useState<string | null>(null)
-  const [source, setSource] = useState<InvoiceSource | null>(null)
   const [editInvoiceId, setEditInvoiceId] = useState<number | null>(null)
   const [clearUploadKey, setClearUploadKey] = useState(0)
   useEffect(() => {
@@ -69,28 +65,7 @@ export default function InvoicePage() {
     setReport(null)
     setAgentLog([])
     setActiveStepId(null)
-    setSource((prev) => {
-      revokeSourcePreview(prev)
-      return null
-    })
   }, [])
-
-  const handleSourceChange = useCallback((next: InvoiceSource | null) => {
-    setSource((prev) => {
-      if (prev?.kind === "file" && next?.kind === "file" && prev.previewUrl !== next.previewUrl) {
-        URL.revokeObjectURL(prev.previewUrl)
-      } else if (prev?.kind === "file" && next === null) {
-        revokeSourcePreview(prev)
-      } else if (prev?.kind === "file" && next?.kind === "text") {
-        revokeSourcePreview(prev)
-      }
-      return next
-    })
-  }, [])
-
-  useEffect(() => {
-    return () => revokeSourcePreview(source)
-  }, [source])
 
   const handleProcess = useCallback(
     async (payload: { file?: File; text?: string }) => {
@@ -224,7 +199,6 @@ export default function InvoicePage() {
               <FileUpload
                 samples={samples}
                 onProcess={handleProcess}
-                onSourceChange={handleSourceChange}
                 isProcessing={isProcessing}
                 clearUploadKey={clearUploadKey}
               />
@@ -239,14 +213,9 @@ export default function InvoicePage() {
               />
             </div>
 
-            {/* Right: Results + source document */}
-            <div className="flex w-[min(1120px,56vw)] min-w-[42rem] shrink-0 border-l">
-              <div className="w-[28rem] min-w-[24rem] shrink-0 overflow-y-auto border-r">
-                <ResultsPanel report={report} />
-              </div>
-              <div className="min-w-[14rem] flex-1">
-                <DocumentPreview source={source} />
-              </div>
+            {/* Right: Results */}
+            <div className="w-[28rem] min-w-[24rem] shrink-0 overflow-y-auto border-l">
+              <ResultsPanel report={report} />
             </div>
           </div>
 

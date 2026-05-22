@@ -1,16 +1,15 @@
 "use client"
 
 import { Loader2, Plus, Save, X } from "lucide-react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
-import { DocumentPreview } from "@/components/invoice/document-preview"
 import { Button } from "@/components/ui/button"
 import {
   emptyLineItem,
   fetchHistoryInvoice,
   updateHistoryInvoice,
 } from "@/lib/invoice-api"
-import type { InvoiceHistoryDetail, InvoiceSource, LineItem } from "@/lib/invoice-types"
+import type { InvoiceHistoryDetail, LineItem } from "@/lib/invoice-types"
 
 interface InvoiceEditDrawerProps {
   invoiceId: number | null
@@ -41,25 +40,11 @@ function Field({
 const inputClass =
   "w-full rounded-md border bg-background px-2.5 py-1.5 text-sm focus:border-primary focus:outline-none"
 
-function historyPreviewSource(form: InvoiceHistoryDetail): InvoiceSource | null {
-  if (!form.source_text?.trim()) return null
-  return {
-    kind: "text",
-    text: form.source_text,
-    label: form.file_name ?? form.invoice_number ?? `Invoice #${form.id}`,
-  }
-}
-
 export function InvoiceEditDrawer({ invoiceId, onClose, onSaved }: InvoiceEditDrawerProps) {
   const [form, setForm] = useState<InvoiceHistoryDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-
-  const previewSource = useMemo(
-    () => (form ? historyPreviewSource(form) : null),
-    [form],
-  )
 
   useEffect(() => {
     if (invoiceId == null) {
@@ -169,8 +154,7 @@ export function InvoiceEditDrawer({ invoiceId, onClose, onSaved }: InvoiceEditDr
           </button>
         </header>
 
-        <div className="flex min-h-0 flex-1">
-          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-5">
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
             {loading && (
               <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -427,11 +411,6 @@ export function InvoiceEditDrawer({ invoiceId, onClose, onSaved }: InvoiceEditDr
                 </section>
               </div>
             )}
-          </div>
-
-          <div className="flex w-[min(420px,38%)] min-w-[18rem] shrink-0 flex-col border-l bg-muted/10">
-            <DocumentPreview source={previewSource} />
-          </div>
         </div>
 
         <footer className="flex shrink-0 items-center justify-end gap-2 border-t px-5 py-3">

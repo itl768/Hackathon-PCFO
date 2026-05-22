@@ -148,6 +148,7 @@ export interface InvoiceHistoryDetail {
   risk_score: number | null
   file_name: string | null
   processed_at: string | null
+  source_text: string | null
   line_items: LineItem[]
 }
 

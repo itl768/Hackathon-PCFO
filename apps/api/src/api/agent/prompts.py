@@ -274,11 +274,11 @@ Evaluate in order:
    - Do NOT flag amounts solely because they are round numbers
 
 2. **Date anomalies** (relative to {today} ONLY — not relative to invoice date)
-   - "Future" means strictly AFTER {today}, not merely after the invoice date
-   - A due date after the invoice date but still before {today} is normal (e.g. Net 14) — do NOT flag as future
+   - A due date AFTER {today} is normal (payment not yet due) — do NOT flag it
+   - Flag due date BEFORE {today} as overdue / payment deadline passed (use flag_type due_date_overdue)
+   - Do NOT flag a due date merely because it is after the invoice date
    - Invoice date far in future or more than one year before {today}
-   - Due date before invoice date
-   - Due date after {today} may be flagged; due date before {today} is past due, not future
+   - Due date before invoice date is always invalid
    - Service periods that do not align with invoice date
 
 3. **Vendor & identity**

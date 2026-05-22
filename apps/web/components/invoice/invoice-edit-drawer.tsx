@@ -1,15 +1,16 @@
 "use client"
 
 import { Loader2, Plus, Save, X } from "lucide-react"
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 
+import { DocumentPreview } from "@/components/invoice/document-preview"
 import { Button } from "@/components/ui/button"
 import {
   emptyLineItem,
   fetchHistoryInvoice,
   updateHistoryInvoice,
 } from "@/lib/invoice-api"
-import type { InvoiceHistoryDetail, LineItem } from "@/lib/invoice-types"
+import type { InvoiceHistoryDetail, InvoiceSource, LineItem } from "@/lib/invoice-types"
 
 interface InvoiceEditDrawerProps {
   invoiceId: number | null
@@ -40,11 +41,25 @@ function Field({
 const inputClass =
   "w-full rounded-md border bg-background px-2.5 py-1.5 text-sm focus:border-primary focus:outline-none"
 
+function historyPreviewSource(form: InvoiceHistoryDetail): InvoiceSource | null {
+  if (!form.source_text?.trim()) return null
+  return {
+    kind: "text",
+    text: form.source_text,
+    label: form.file_name ?? form.invoice_number ?? `Invoice #${form.id}`,
+  }
+}
+
 export function InvoiceEditDrawer({ invoiceId, onClose, onSaved }: InvoiceEditDrawerProps) {
   const [form, setForm] = useState<InvoiceHistoryDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  const previewSource = useMemo(
+    () => (form ? historyPreviewSource(form) : null),
+    [form],
+  )
 
   useEffect(() => {
     if (invoiceId == null) {
@@ -129,11 +144,11 @@ export function InvoiceEditDrawer({ invoiceId, onClose, onSaved }: InvoiceEditDr
         aria-hidden
       />
       <aside
-        className="fixed inset-y-0 right-0 z-50 flex w-full max-w-xl flex-col border-l bg-background shadow-2xl"
+        className="fixed inset-y-0 right-0 z-50 flex w-[min(92vw,80rem)] max-w-none flex-col border-l bg-background shadow-2xl"
         role="dialog"
         aria-labelledby="invoice-drawer-title"
       >
-        <header className="flex items-center justify-between border-b px-4 py-3">
+        <header className="flex shrink-0 items-center justify-between border-b px-5 py-3">
           <div>
             <h2 id="invoice-drawer-title" className="text-sm font-bold">
               Edit invoice
@@ -154,266 +169,272 @@ export function InvoiceEditDrawer({ invoiceId, onClose, onSaved }: InvoiceEditDr
           </button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
-          {loading && (
-            <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Loading…
-            </div>
-          )}
-          {error && !loading && (
-            <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
-          {form && !loading && (
-            <div className="space-y-6">
-              <section className="space-y-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Vendor
-                </h3>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Company name" required>
-                    <input
-                      className={inputClass}
-                      value={form.vendor_name ?? ""}
-                      onChange={(e) => updateField("vendor_name", e.target.value || null)}
-                    />
-                  </Field>
-                  <Field label="Country">
-                    <input
-                      className={inputClass}
-                      value={form.vendor_country ?? ""}
-                      onChange={(e) => updateField("vendor_country", e.target.value || null)}
-                    />
-                  </Field>
-                  <Field label="IBAN">
-                    <input
-                      className={inputClass}
-                      value={form.vendor_iban ?? ""}
-                      onChange={(e) => updateField("vendor_iban", e.target.value || null)}
-                    />
-                  </Field>
-                  <Field label="VAT number">
-                    <input
-                      className={inputClass}
-                      value={form.vendor_vat_number ?? ""}
-                      onChange={(e) => updateField("vendor_vat_number", e.target.value || null)}
-                    />
-                  </Field>
-                </div>
-                <label className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={form.vat_reversed}
-                    onChange={(e) => updateField("vat_reversed", e.target.checked)}
-                    className="rounded border"
-                  />
-                  VAT reversed charge
-                </label>
-              </section>
-
-              <section className="space-y-3">
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Document
-                </h3>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <Field label="Invoice number" required>
-                    <input
-                      className={inputClass}
-                      value={form.invoice_number ?? ""}
-                      onChange={(e) => updateField("invoice_number", e.target.value || null)}
-                    />
-                  </Field>
-                  <Field label="Payment reference">
-                    <input
-                      className={inputClass}
-                      value={form.payment_reference ?? ""}
-                      onChange={(e) => updateField("payment_reference", e.target.value || null)}
-                    />
-                  </Field>
-                  <Field label="Invoice date" required>
-                    <input
-                      type="date"
-                      className={inputClass}
-                      value={form.invoice_date ?? ""}
-                      onChange={(e) => updateField("invoice_date", e.target.value || null)}
-                    />
-                  </Field>
-                  <Field label="Due date">
-                    <input
-                      type="date"
-                      className={inputClass}
-                      value={form.due_date ?? ""}
-                      onChange={(e) => updateField("due_date", e.target.value || null)}
-                    />
-                  </Field>
-                  <Field label="Currency">
-                    <input
-                      className={inputClass}
-                      value={form.currency}
-                      onChange={(e) => updateField("currency", e.target.value)}
-                    />
-                  </Field>
-                  <Field label="Payment terms">
-                    <input
-                      className={inputClass}
-                      value={form.payment_terms ?? ""}
-                      onChange={(e) => updateField("payment_terms", e.target.value || null)}
-                    />
-                  </Field>
-                  <Field label="Subtotal">
-                    <input
-                      type="number"
-                      step="0.01"
-                      className={inputClass}
-                      value={form.subtotal ?? ""}
-                      onChange={(e) =>
-                        updateField("subtotal", e.target.value ? Number(e.target.value) : null)
-                      }
-                    />
-                  </Field>
-                  <Field label="Total VAT">
-                    <input
-                      type="number"
-                      step="0.01"
-                      className={inputClass}
-                      value={form.vat_total ?? ""}
-                      onChange={(e) =>
-                        updateField("vat_total", e.target.value ? Number(e.target.value) : null)
-                      }
-                    />
-                  </Field>
-                  <Field label="Total amount" required>
-                    <input
-                      type="number"
-                      step="0.01"
-                      className={inputClass}
-                      value={form.total_amount ?? ""}
-                      onChange={(e) =>
-                        updateField("total_amount", e.target.value ? Number(e.target.value) : null)
-                      }
-                    />
-                  </Field>
-                </div>
-              </section>
-
-              <section className="space-y-3">
-                <div className="flex items-center justify-between">
+        <div className="flex min-h-0 flex-1">
+          <div className="min-h-0 min-w-0 flex-1 overflow-y-auto p-5">
+            {loading && (
+              <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading…
+              </div>
+            )}
+            {error && !loading && (
+              <p className="rounded-md border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
+            )}
+            {form && !loading && (
+              <div className="space-y-6">
+                <section className="space-y-3">
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Line items
+                    Vendor
                   </h3>
-                  <Button type="button" variant="outline" size="xs" onClick={addLine}>
-                    <Plus className="h-3 w-3" />
-                    Add line
-                  </Button>
-                </div>
-                <div className="overflow-x-auto rounded-lg border">
-                  <table className="w-full min-w-[640px] text-xs">
-                    <thead>
-                      <tr className="border-b bg-muted/40">
-                        <th className="px-2 py-2 text-left font-medium">GL account</th>
-                        <th className="px-2 py-2 text-left font-medium">Description</th>
-                        <th className="px-2 py-2 text-right font-medium">Net</th>
-                        <th className="px-2 py-2 text-right font-medium">VAT %</th>
-                        <th className="px-2 py-2 text-right font-medium">VAT</th>
-                        <th className="px-2 py-2 text-right font-medium">Total</th>
-                        <th className="w-8" />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {form.line_items.length === 0 ? (
-                        <tr>
-                          <td colSpan={7} className="px-2 py-4 text-center text-muted-foreground">
-                            No line items — add one or re-process the document
-                          </td>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Company name" required>
+                      <input
+                        className={inputClass}
+                        value={form.vendor_name ?? ""}
+                        onChange={(e) => updateField("vendor_name", e.target.value || null)}
+                      />
+                    </Field>
+                    <Field label="Country">
+                      <input
+                        className={inputClass}
+                        value={form.vendor_country ?? ""}
+                        onChange={(e) => updateField("vendor_country", e.target.value || null)}
+                      />
+                    </Field>
+                    <Field label="IBAN">
+                      <input
+                        className={inputClass}
+                        value={form.vendor_iban ?? ""}
+                        onChange={(e) => updateField("vendor_iban", e.target.value || null)}
+                      />
+                    </Field>
+                    <Field label="VAT number">
+                      <input
+                        className={inputClass}
+                        value={form.vendor_vat_number ?? ""}
+                        onChange={(e) => updateField("vendor_vat_number", e.target.value || null)}
+                      />
+                    </Field>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={form.vat_reversed}
+                      onChange={(e) => updateField("vat_reversed", e.target.checked)}
+                      className="rounded border"
+                    />
+                    VAT reversed charge
+                  </label>
+                </section>
+
+                <section className="space-y-3">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Document
+                  </h3>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Invoice number" required>
+                      <input
+                        className={inputClass}
+                        value={form.invoice_number ?? ""}
+                        onChange={(e) => updateField("invoice_number", e.target.value || null)}
+                      />
+                    </Field>
+                    <Field label="Payment reference">
+                      <input
+                        className={inputClass}
+                        value={form.payment_reference ?? ""}
+                        onChange={(e) => updateField("payment_reference", e.target.value || null)}
+                      />
+                    </Field>
+                    <Field label="Invoice date" required>
+                      <input
+                        type="date"
+                        className={inputClass}
+                        value={form.invoice_date ?? ""}
+                        onChange={(e) => updateField("invoice_date", e.target.value || null)}
+                      />
+                    </Field>
+                    <Field label="Due date">
+                      <input
+                        type="date"
+                        className={inputClass}
+                        value={form.due_date ?? ""}
+                        onChange={(e) => updateField("due_date", e.target.value || null)}
+                      />
+                    </Field>
+                    <Field label="Currency">
+                      <input
+                        className={inputClass}
+                        value={form.currency}
+                        onChange={(e) => updateField("currency", e.target.value)}
+                      />
+                    </Field>
+                    <Field label="Payment terms">
+                      <input
+                        className={inputClass}
+                        value={form.payment_terms ?? ""}
+                        onChange={(e) => updateField("payment_terms", e.target.value || null)}
+                      />
+                    </Field>
+                    <Field label="Subtotal">
+                      <input
+                        type="number"
+                        step="0.01"
+                        className={inputClass}
+                        value={form.subtotal ?? ""}
+                        onChange={(e) =>
+                          updateField("subtotal", e.target.value ? Number(e.target.value) : null)
+                        }
+                      />
+                    </Field>
+                    <Field label="Total VAT">
+                      <input
+                        type="number"
+                        step="0.01"
+                        className={inputClass}
+                        value={form.vat_total ?? ""}
+                        onChange={(e) =>
+                          updateField("vat_total", e.target.value ? Number(e.target.value) : null)
+                        }
+                      />
+                    </Field>
+                    <Field label="Total amount" required>
+                      <input
+                        type="number"
+                        step="0.01"
+                        className={inputClass}
+                        value={form.total_amount ?? ""}
+                        onChange={(e) =>
+                          updateField("total_amount", e.target.value ? Number(e.target.value) : null)
+                        }
+                      />
+                    </Field>
+                  </div>
+                </section>
+
+                <section className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                      Line items
+                    </h3>
+                    <Button type="button" variant="outline" size="xs" onClick={addLine}>
+                      <Plus className="h-3 w-3" />
+                      Add line
+                    </Button>
+                  </div>
+                  <div className="overflow-x-auto rounded-lg border">
+                    <table className="w-full min-w-[640px] text-xs">
+                      <thead>
+                        <tr className="border-b bg-muted/40">
+                          <th className="px-2 py-2 text-left font-medium">GL account</th>
+                          <th className="px-2 py-2 text-left font-medium">Description</th>
+                          <th className="px-2 py-2 text-right font-medium">Net</th>
+                          <th className="px-2 py-2 text-right font-medium">VAT %</th>
+                          <th className="px-2 py-2 text-right font-medium">VAT</th>
+                          <th className="px-2 py-2 text-right font-medium">Total</th>
+                          <th className="w-8" />
                         </tr>
-                      ) : (
-                        form.line_items.map((line, i) => (
-                          <tr key={i} className="border-b last:border-0">
-                            <td className="p-1">
-                              <input
-                                className={inputClass}
-                                value={line.gl_account ?? ""}
-                                onChange={(e) =>
-                                  updateLine(i, { gl_account: e.target.value || null })
-                                }
-                              />
-                            </td>
-                            <td className="p-1">
-                              <input
-                                className={inputClass}
-                                value={line.description}
-                                onChange={(e) => updateLine(i, { description: e.target.value })}
-                              />
-                            </td>
-                            <td className="p-1">
-                              <input
-                                type="number"
-                                step="0.01"
-                                className={`${inputClass} text-right`}
-                                value={line.net_amount}
-                                onChange={(e) =>
-                                  updateLine(i, { net_amount: Number(e.target.value) || 0 })
-                                }
-                              />
-                            </td>
-                            <td className="p-1">
-                              <input
-                                type="number"
-                                step="0.01"
-                                className={`${inputClass} text-right`}
-                                value={line.vat_rate ?? ""}
-                                onChange={(e) =>
-                                  updateLine(i, {
-                                    vat_rate: e.target.value ? Number(e.target.value) : null,
-                                  })
-                                }
-                              />
-                            </td>
-                            <td className="p-1">
-                              <input
-                                type="number"
-                                step="0.01"
-                                className={`${inputClass} text-right`}
-                                value={line.vat_amount}
-                                onChange={(e) =>
-                                  updateLine(i, { vat_amount: Number(e.target.value) || 0 })
-                                }
-                              />
-                            </td>
-                            <td className="p-1">
-                              <input
-                                type="number"
-                                step="0.01"
-                                className={`${inputClass} text-right`}
-                                value={line.line_total}
-                                onChange={(e) =>
-                                  updateLine(i, { line_total: Number(e.target.value) || 0 })
-                                }
-                              />
-                            </td>
-                            <td className="p-1 text-center">
-                              <button
-                                type="button"
-                                onClick={() => removeLine(i)}
-                                className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                              >
-                                <X className="h-3 w-3" />
-                              </button>
+                      </thead>
+                      <tbody>
+                        {form.line_items.length === 0 ? (
+                          <tr>
+                            <td colSpan={7} className="px-2 py-4 text-center text-muted-foreground">
+                              No line items — add one or re-process the document
                             </td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
-            </div>
-          )}
+                        ) : (
+                          form.line_items.map((line, i) => (
+                            <tr key={i} className="border-b last:border-0">
+                              <td className="p-1">
+                                <input
+                                  className={inputClass}
+                                  value={line.gl_account ?? ""}
+                                  onChange={(e) =>
+                                    updateLine(i, { gl_account: e.target.value || null })
+                                  }
+                                />
+                              </td>
+                              <td className="p-1">
+                                <input
+                                  className={inputClass}
+                                  value={line.description}
+                                  onChange={(e) => updateLine(i, { description: e.target.value })}
+                                />
+                              </td>
+                              <td className="p-1">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className={`${inputClass} text-right`}
+                                  value={line.net_amount}
+                                  onChange={(e) =>
+                                    updateLine(i, { net_amount: Number(e.target.value) || 0 })
+                                  }
+                                />
+                              </td>
+                              <td className="p-1">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className={`${inputClass} text-right`}
+                                  value={line.vat_rate ?? ""}
+                                  onChange={(e) =>
+                                    updateLine(i, {
+                                      vat_rate: e.target.value ? Number(e.target.value) : null,
+                                    })
+                                  }
+                                />
+                              </td>
+                              <td className="p-1">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className={`${inputClass} text-right`}
+                                  value={line.vat_amount}
+                                  onChange={(e) =>
+                                    updateLine(i, { vat_amount: Number(e.target.value) || 0 })
+                                  }
+                                />
+                              </td>
+                              <td className="p-1">
+                                <input
+                                  type="number"
+                                  step="0.01"
+                                  className={`${inputClass} text-right`}
+                                  value={line.line_total}
+                                  onChange={(e) =>
+                                    updateLine(i, { line_total: Number(e.target.value) || 0 })
+                                  }
+                                />
+                              </td>
+                              <td className="p-1 text-center">
+                                <button
+                                  type="button"
+                                  onClick={() => removeLine(i)}
+                                  className="rounded p-1 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                                >
+                                  <X className="h-3 w-3" />
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+              </div>
+            )}
+          </div>
+
+          <div className="flex w-[min(420px,38%)] min-w-[18rem] shrink-0 flex-col border-l bg-muted/10">
+            <DocumentPreview source={previewSource} />
+          </div>
         </div>
 
-        <footer className="flex items-center justify-end gap-2 border-t px-4 py-3">
+        <footer className="flex shrink-0 items-center justify-end gap-2 border-t px-5 py-3">
           <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
             Cancel
           </Button>

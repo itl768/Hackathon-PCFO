@@ -10,7 +10,7 @@ from api.agent.date_utils import (
     ALLOWED_FUTURE_DAYS,
     ALLOWED_PAST_DAYS,
     STALE_INVOICE_DAYS,
-    is_after_reference,
+    is_before_reference,
     is_more_than_days_before_reference,
     parse_date,
     today,
@@ -77,13 +77,13 @@ def _rule_based_flags(invoice: ExtractedInvoice, validation: ValidationResult) -
             )
         )
 
-    if due_date and is_after_reference(due_date, ref):
+    if due_date and is_before_reference(due_date, ref):
         flags.append(
             AnomalyFlag(
-                flag_type="due_date_future",
+                flag_type="due_date_overdue",
                 severity="medium",
                 description=(
-                    f"Due date {due_date.isoformat()} is after today ({ref.isoformat()})"
+                    f"Due date {due_date.isoformat()} has passed (today is {ref.isoformat()})"
                 ),
             )
         )
@@ -178,18 +178,13 @@ def _filter_llm_date_flags(
 
     for flag in llm_flags:
         text = flag.description.lower()
-        if due_date and due_date <= ref and "due" in text and "future" in text:
+        if due_date and "due" in text and "future" in text:
+            continue
+        if due_date and due_date > ref and "due" in text and (
+            "overdue" in text or "passed" in text or "past due" in text
+        ):
             continue
         if inv_date and inv_date <= ref and "invoice" in text and "future" in text:
-            continue
-        if (
-            due_date
-            and inv_date
-            and due_date > inv_date
-            and due_date <= ref
-            and "due" in text
-            and "future" in text
-        ):
             continue
         filtered.append(flag)
 

@@ -129,8 +129,10 @@ function mapAnomalyFlag(alerts: FieldAlerts, flag: AnomalyFlag) {
     case "invoice_date_old":
       addAlert(alerts, "invoice_date", "anomaly", sev, msg)
       break
-    case "due_date_future":
+    case "due_date_overdue":
       addAlert(alerts, "due_date", "anomaly", sev, msg)
+      break
+    case "due_date_future":
       break
     case "due_date_before_invoice":
       addAlert(alerts, "due_date", "anomaly", sev, msg)
@@ -184,7 +186,14 @@ function applyAuthoritativeDateAlerts(alerts: FieldAlerts, inv: ExtractedInvoice
   const dueAlert = alerts.due_date
   if (dueAlert && dueDate) {
     dueAlert.messages = dueAlert.messages.filter((m) => {
-      if (/future/i.test(m) && dueDate.getTime() <= ref.getTime()) {
+      const lower = m.toLowerCase()
+      if (/future/i.test(lower)) {
+        return false
+      }
+      if (
+        dueDate.getTime() > ref.getTime() &&
+        (/(overdue|passed|past due)/i.test(lower))
+      ) {
         return false
       }
       return true
@@ -207,13 +216,13 @@ function applyAuthoritativeDateAlerts(alerts: FieldAlerts, inv: ExtractedInvoice
     }
   }
 
-  if (dueDate && dueDate.getTime() > ref.getTime()) {
+  if (dueDate && dueDate.getTime() < ref.getTime()) {
     addAlert(
       alerts,
       "due_date",
       "anomaly",
       "medium",
-      `Due date is after today (${refLabel}).`,
+      `Due date has passed (today is ${refLabel}).`,
     )
   }
 }

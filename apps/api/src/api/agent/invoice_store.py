@@ -43,6 +43,30 @@ async def insert_line_items(conn, invoice_id: int, items: list[LineItem]) -> Non
         )
 
 
+async def _fetch_source_text(
+    conn,
+    invoice_number: str | None,
+    vendor_name: str | None,
+    total_amount: float | None,
+) -> str | None:
+    if not invoice_number:
+        return None
+    cur = await conn.execute(
+        """
+        SELECT invoice_text
+        FROM invoice_embeddings
+        WHERE invoice_number = %s
+          AND (vendor_name IS NOT DISTINCT FROM %s)
+          AND (total_amount IS NOT DISTINCT FROM %s)
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        (invoice_number, vendor_name, total_amount),
+    )
+    emb = await cur.fetchone()
+    return emb[0] if emb else None
+
+
 async def get_invoice_detail(pool, invoice_id: int) -> InvoiceHistoryDetail | None:
     async with pool.connection() as conn:
         cur = await conn.execute(
@@ -59,6 +83,8 @@ async def get_invoice_detail(pool, invoice_id: int) -> InvoiceHistoryDetail | No
         row = await cur.fetchone()
         if row is None:
             return None
+
+        source_text = await _fetch_source_text(conn, row[1], row[3], row[12])
 
         cur = await conn.execute(
             """
@@ -92,6 +118,7 @@ async def get_invoice_detail(pool, invoice_id: int) -> InvoiceHistoryDetail | No
         risk_score=row[16],
         file_name=row[17],
         processed_at=str(row[18]) if row[18] else None,
+        source_text=source_text,
         line_items=[_row_to_line_item(r) for r in line_rows],
     )
 

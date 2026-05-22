@@ -118,6 +118,7 @@ class InvoiceHistoryDetail(BaseModel):
     risk_score: int | None = None
     file_name: str | None = None
     processed_at: str | None = None
+    source_text: str | None = None
     line_items: list[LineItem] = Field(default_factory=list)
 
 

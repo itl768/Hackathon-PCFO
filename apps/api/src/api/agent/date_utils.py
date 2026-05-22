@@ -53,6 +53,13 @@ def is_after_reference(value: date | None, reference: date | None = None) -> boo
     return value > ref
 
 
+def is_before_reference(value: date | None, reference: date | None = None) -> bool:
+    if value is None:
+        return False
+    ref = reference or today()
+    return value < ref
+
+
 def is_more_than_days_before_reference(
     value: date | None,
     days: int,

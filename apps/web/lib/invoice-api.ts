@@ -1,8 +1,15 @@
 import { createParser } from "eventsource-parser"
 
+import type { InvoiceSettings } from "@/lib/invoice-currency"
 import type { HistoryEntry, SampleInvoice } from "@/lib/invoice-types"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+
+export async function fetchInvoiceSettings(): Promise<InvoiceSettings> {
+  const res = await fetch(`${API_URL}/api/invoice/settings`)
+  if (!res.ok) throw new Error("Failed to fetch invoice settings")
+  return res.json()
+}
 
 export async function fetchSamples(): Promise<SampleInvoice[]> {
   const res = await fetch(`${API_URL}/api/invoice/samples`)
@@ -22,13 +29,16 @@ export interface InvoiceSSEEvent {
 }
 
 export async function* streamProcessInvoice(
-  payload: { file?: File; text?: string },
+  payload: { file?: File; text?: string; currency?: string },
 ): AsyncGenerator<InvoiceSSEEvent, void, unknown> {
   const formData = new FormData()
   if (payload.file) {
     formData.append("file", payload.file)
   } else if (payload.text) {
     formData.append("text", payload.text)
+  }
+  if (payload.currency) {
+    formData.append("currency", payload.currency)
   }
 
   const response = await fetch(`${API_URL}/api/invoice/process`, {

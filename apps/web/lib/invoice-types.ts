@@ -118,3 +118,17 @@ export interface HistoryEntry {
   invoice_date: string | null
   processed_at: string | null
 }
+
+export type InvoiceSource =
+  | {
+      kind: "file"
+      file: File
+      previewUrl: string
+      fileName: string
+      mimeType: string
+    }
+  | {
+      kind: "text"
+      text: string
+      label: string
+    }

@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 class InvoiceState(TypedDict):
     raw_text: str
     file_name: str
+    default_currency: str
     embedding: list[float]
     dedup_vector_result: dict | None
     extracted_invoice: dict | None
@@ -68,7 +69,10 @@ def build_invoice_graph(pool):
     async def extract_node(state: InvoiceState) -> dict:
         from api.agent.extractor import extract_invoice
 
-        invoice = await extract_invoice(state["raw_text"])
+        invoice = await extract_invoice(
+            state["raw_text"],
+            default_currency=state.get("default_currency"),
+        )
         n = len(invoice.line_items)
         return {
             "extracted_invoice": invoice.model_dump(),

@@ -9,8 +9,10 @@ from fastapi import APIRouter, File, Form, Request, UploadFile
 from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
+from api.agent.currency_utils import SUPPORTED_CURRENCIES, normalize_currency
 from api.agent.document_reader import read_document
 from api.agent.invoice_graph import build_invoice_graph
+from api.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -132,6 +134,15 @@ def _materialize_samples() -> list[dict]:
     return out
 
 
+@router.get("/settings")
+async def get_invoice_settings():
+    return {
+        "default_currency": normalize_currency(None, settings.invoice_default_currency),
+        "supported_currencies": list(SUPPORTED_CURRENCIES),
+        "approval_threshold": settings.invoice_approval_threshold,
+    }
+
+
 @router.get("/samples")
 async def get_samples():
     return _materialize_samples()
@@ -173,8 +184,10 @@ async def process_invoice(
     request: Request,
     file: UploadFile | None = File(None),
     text: str | None = Form(None),
+    currency: str | None = Form(None),
 ):
     pool = request.app.state.invoice_pool
+    default_currency = normalize_currency(currency, settings.invoice_default_currency)
 
     async def event_generator() -> AsyncGenerator[dict, None]:
         raw_text = ""
@@ -235,6 +248,7 @@ async def process_invoice(
         input_state = {
             "raw_text": raw_text,
             "file_name": file_name,
+            "default_currency": default_currency,
             "embedding": [],
             "dedup_vector_result": None,
             "extracted_invoice": None,

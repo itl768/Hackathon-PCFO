@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
 
     invoice_approval_threshold: float = 10_000.0
+    invoice_default_currency: str = "USD"
 
     @property
     def cors_origins_list(self) -> list[str]:

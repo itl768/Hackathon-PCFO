@@ -4,14 +4,18 @@ import { FileText, MessageSquare, History, RotateCcw } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 
 import { AgentLog } from "@/components/invoice/agent-log"
+import { DocumentPreview } from "@/components/invoice/document-preview"
 import { FileUpload } from "@/components/invoice/file-upload"
 import { InvoiceChat } from "@/components/invoice/invoice-chat"
 import { PipelineVisualizer } from "@/components/invoice/pipeline-visualizer"
 import { ResultsPanel } from "@/components/invoice/results-panel"
-import { fetchHistory, fetchSamples, streamProcessInvoice } from "@/lib/invoice-api"
+import { fetchHistory, fetchInvoiceSettings, fetchSamples, streamProcessInvoice } from "@/lib/invoice-api"
+import { loadStoredCurrency, saveStoredCurrency } from "@/lib/invoice-currency"
+import { revokeSourcePreview } from "@/lib/invoice-source"
 import type {
   AgentLogEntry,
   HistoryEntry,
+  InvoiceSource,
   PipelineStep,
   PipelineStepState,
   ProcessingReport,
@@ -38,9 +42,23 @@ export default function InvoicePage() {
   const [report, setReport] = useState<ProcessingReport | null>(null)
   const [agentLog, setAgentLog] = useState<AgentLogEntry[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+  const [source, setSource] = useState<InvoiceSource | null>(null)
+  const [defaultCurrency, setDefaultCurrency] = useState("USD")
+  const [currencyOptions, setCurrencyOptions] = useState<string[]>(["USD", "EUR", "GBP", "LKR"])
 
   useEffect(() => {
     fetchSamples().then(setSamples).catch(console.error)
+    fetchInvoiceSettings()
+      .then((s) => {
+        setCurrencyOptions(s.supported_currencies)
+        setDefaultCurrency(loadStoredCurrency(s.default_currency))
+      })
+      .catch(console.error)
+  }, [])
+
+  const handleCurrencyChange = useCallback((code: string) => {
+    setDefaultCurrency(code)
+    saveStoredCurrency(code)
   }, [])
 
   useEffect(() => {
@@ -59,11 +77,34 @@ export default function InvoicePage() {
     setSteps(INITIAL_STEPS)
     setReport(null)
     setAgentLog([])
+    setSource((prev) => {
+      revokeSourcePreview(prev)
+      return null
+    })
   }, [])
 
+  const handleSourceChange = useCallback((next: InvoiceSource | null) => {
+    setSource((prev) => {
+      if (prev?.kind === "file" && next?.kind === "file" && prev.previewUrl !== next.previewUrl) {
+        URL.revokeObjectURL(prev.previewUrl)
+      } else if (prev?.kind === "file" && next === null) {
+        revokeSourcePreview(prev)
+      } else if (prev?.kind === "file" && next?.kind === "text") {
+        revokeSourcePreview(prev)
+      }
+      return next
+    })
+  }, [])
+
+  useEffect(() => {
+    return () => revokeSourcePreview(source)
+  }, [source])
+
   const handleProcess = useCallback(
-    async (payload: { file?: File; text?: string }) => {
-      handleReset()
+    async (payload: { file?: File; text?: string; currency?: string }) => {
+      setSteps(INITIAL_STEPS)
+      setReport(null)
+      setAgentLog([])
       setIsProcessing(true)
 
       try {
@@ -110,7 +151,7 @@ export default function InvoicePage() {
         setIsProcessing(false)
       }
     },
-    [handleReset, updateStep],
+    [updateStep],
   )
 
   return (
@@ -170,19 +211,28 @@ export default function InvoicePage() {
             <div className="w-72 shrink-0 border-r">
               <FileUpload
                 samples={samples}
+                defaultCurrency={defaultCurrency}
+                currencyOptions={currencyOptions}
+                onCurrencyChange={handleCurrencyChange}
                 onProcess={handleProcess}
+                onSourceChange={handleSourceChange}
                 isProcessing={isProcessing}
               />
             </div>
 
             {/* Center: Pipeline */}
-            <div className="flex flex-1 items-center justify-center overflow-y-auto border-r">
+            <div className="flex min-w-0 flex-1 items-center justify-center overflow-y-auto border-r">
               <PipelineVisualizer steps={steps} />
             </div>
 
-            {/* Right: Results */}
-            <div className="w-80 shrink-0 overflow-y-auto">
-              <ResultsPanel report={report} />
+            {/* Right: Results + source document */}
+            <div className="flex w-[min(920px,48vw)] shrink-0 border-l">
+              <div className="w-80 shrink-0 overflow-y-auto border-r">
+                <ResultsPanel report={report} />
+              </div>
+              <div className="min-w-0 flex-1">
+                <DocumentPreview source={source} />
+              </div>
             </div>
           </div>
 

@@ -3,15 +3,29 @@
 import { Upload, FileText, Sparkles } from "lucide-react"
 import { useCallback, useRef, useState } from "react"
 
-import type { SampleInvoice } from "@/lib/invoice-types"
+import { CurrencySelector } from "@/components/invoice/currency-selector"
+import type { InvoiceSource, SampleInvoice } from "@/lib/invoice-types"
+import { sourceFromFile, sourceFromText } from "@/lib/invoice-source"
 
 interface FileUploadProps {
   samples: SampleInvoice[]
-  onProcess: (payload: { file?: File; text?: string }) => void
+  defaultCurrency: string
+  currencyOptions: string[]
+  onCurrencyChange: (code: string) => void
+  onProcess: (payload: { file?: File; text?: string; currency?: string }) => void
+  onSourceChange?: (source: InvoiceSource | null) => void
   isProcessing: boolean
 }
 
-export function FileUpload({ samples, onProcess, isProcessing }: FileUploadProps) {
+export function FileUpload({
+  samples,
+  defaultCurrency,
+  currencyOptions,
+  onCurrencyChange,
+  onProcess,
+  onSourceChange,
+  isProcessing,
+}: FileUploadProps) {
   const [dragOver, setDragOver] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [pastedText, setPastedText] = useState("")
@@ -25,16 +39,18 @@ export function FileUpload({ samples, onProcess, isProcessing }: FileUploadProps
     if (file) {
       setSelectedFile(file)
       setMode("upload")
+      onSourceChange?.(sourceFromFile(file))
     }
-  }, [])
+  }, [onSourceChange])
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
       setSelectedFile(file)
       setMode("upload")
+      onSourceChange?.(sourceFromFile(file))
     }
-  }, [])
+  }, [onSourceChange])
 
   const handleSampleSelect = useCallback(
     (sampleId: string) => {
@@ -43,16 +59,19 @@ export function FileUpload({ samples, onProcess, isProcessing }: FileUploadProps
         setPastedText(sample.text)
         setSelectedFile(null)
         setMode("paste")
+        onSourceChange?.(sourceFromText(sample.text, sample.name))
       }
     },
-    [samples],
+    [samples, onSourceChange],
   )
 
   const handleProcess = () => {
     if (mode === "upload" && selectedFile) {
-      onProcess({ file: selectedFile })
+      onSourceChange?.(sourceFromFile(selectedFile))
+      onProcess({ file: selectedFile, currency: defaultCurrency })
     } else if (mode === "paste" && pastedText.trim()) {
-      onProcess({ text: pastedText })
+      onSourceChange?.(sourceFromText(pastedText))
+      onProcess({ text: pastedText, currency: defaultCurrency })
     }
   }
 
@@ -129,11 +148,22 @@ export function FileUpload({ samples, onProcess, isProcessing }: FileUploadProps
       ) : (
         <textarea
           value={pastedText}
-          onChange={(e) => setPastedText(e.target.value)}
+          onChange={(e) => {
+            setPastedText(e.target.value)
+            const v = e.target.value.trim()
+            onSourceChange?.(v ? sourceFromText(v) : null)
+          }}
           placeholder="Paste invoice text here..."
           className="min-h-[140px] resize-none rounded-xl border bg-muted/20 p-3 text-sm focus:border-primary focus:outline-none"
         />
       )}
+
+      <CurrencySelector
+        value={defaultCurrency}
+        options={currencyOptions}
+        onChange={onCurrencyChange}
+        disabled={isProcessing}
+      />
 
       {/* Sample Selector */}
       {samples.length > 0 && (

@@ -38,8 +38,11 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-multiagent}
       REDIS_URL: redis://redis:6379
+      DOCUMENT_STORAGE_PATH: /var/invoice_documents
     ports:
       - "${API_PORT:-8000}:8000"
+    volumes:
+      - invoice_documents:/var/invoice_documents
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,3 +79,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  invoice_documents:

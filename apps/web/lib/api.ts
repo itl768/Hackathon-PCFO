@@ -1,121 +1,141 @@
 import { createParser } from "eventsource-parser"
 
-import { API_URL, type LLMProvider, type StreamChunk } from "@/lib/types"
+import {
+  API_URL,
+  type Invoice,
+  type InvoiceListItem,
+  type StageEvent,
+  type StageEventType,
+  type UploadResponse,
+} from "@/lib/types"
 
-/**
- * Sends a message to the FastAPI SSE streaming endpoint and yields parsed chunks.
- */
-export async function* streamChat(
-  message: string,
-  threadId: string,
-  provider?: LLMProvider
-): AsyncGenerator<StreamChunk, void, unknown> {
-  const response = await fetch(`${API_URL}/api/chat/stream`, {
+export async function uploadInvoice(
+  file: File,
+  options?: { forceDuplicate?: boolean }
+): Promise<UploadResponse> {
+  const formData = new FormData()
+  formData.append("file", file)
+
+  const url = new URL(`${API_URL}/api/invoices`)
+  if (options?.forceDuplicate) {
+    url.searchParams.set("force_duplicate", "true")
+  }
+
+  const response = await fetch(url.toString(), {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, thread_id: threadId, provider: provider ?? null }),
+    body: formData,
   })
 
   if (!response.ok) {
-    throw new Error(`API error: ${response.status} ${response.statusText}`)
+    const detail = await response.text()
+    throw new Error(`Upload failed: ${response.status} ${detail}`)
   }
+  return (await response.json()) as UploadResponse
+}
 
+export async function listInvoices(): Promise<InvoiceListItem[]> {
+  const response = await fetch(`${API_URL}/api/invoices`, { cache: "no-store" })
+  if (!response.ok) {
+    throw new Error(`Failed to list invoices: ${response.status}`)
+  }
+  return (await response.json()) as InvoiceListItem[]
+}
+
+export async function getInvoice(invoiceId: string): Promise<Invoice> {
+  const response = await fetch(`${API_URL}/api/invoices/${invoiceId}`, { cache: "no-store" })
+  if (!response.ok) {
+    throw new Error(`Failed to load invoice ${invoiceId}: ${response.status}`)
+  }
+  return (await response.json()) as Invoice
+}
+
+export function getInvoiceDocumentUrl(invoiceId: string): string {
+  return `${API_URL}/api/invoices/${invoiceId}/document`
+}
+
+export async function* subscribeToInvoiceEvents(
+  invoiceId: string,
+  signal?: AbortSignal
+): AsyncGenerator<StageEvent, void, unknown> {
+  const response = await fetch(`${API_URL}/api/invoices/${invoiceId}/events`, {
+    signal,
+    headers: { Accept: "text/event-stream" },
+  })
+
+  if (!response.ok) {
+    throw new Error(`Event stream failed: ${response.status}`)
+  }
   if (!response.body) {
-    throw new Error("Response body is null")
+    throw new Error("Event stream body is null")
   }
 
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
 
-  // Collect all chunks first, then yield them
-  // For large responses we stream token-by-token via a readable-stream approach
-  const allChunks: StreamChunk[] = []
-  let parseError: Error | null = null
+  const buffer: StageEvent[] = []
+  let resolveNext: ((value: IteratorResult<StageEvent>) => void) | null = null
+  let done = false
+
+  const push = (event: StageEvent) => {
+    if (resolveNext) {
+      const resolve = resolveNext
+      resolveNext = null
+      resolve({ value: event, done: false })
+    } else {
+      buffer.push(event)
+    }
+  }
+
+  const finish = () => {
+    done = true
+    if (resolveNext) {
+      const resolve = resolveNext
+      resolveNext = null
+      resolve({ value: undefined as unknown as StageEvent, done: true })
+    }
+  }
 
   const parser = createParser({
     onEvent(event) {
       try {
-        const chunk = JSON.parse(event.data) as StreamChunk
-        allChunks.push(chunk)
+        const data = event.data ? JSON.parse(event.data) : {}
+        push({
+          type: (event.event ?? "stage_started") as StageEventType,
+          ...data,
+        } as StageEvent)
       } catch {
-        // ignore non-JSON events
+        /* ignore malformed payloads */
       }
     },
   })
 
-  // We need real streaming — use a transform approach with manual iteration
-  // Re-implement using a simple push-based async iterable
-  yield* readSSEStream(reader, decoder, parser, allChunks)
-}
-
-async function* readSSEStream(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  decoder: TextDecoder,
-  parser: ReturnType<typeof createParser>,
-  _unused: StreamChunk[]
-): AsyncGenerator<StreamChunk, void, unknown> {
-  // Buffer incoming parsed events
-  const buffer: StreamChunk[] = []
-  let resolveNext: ((value: IteratorResult<StreamChunk>) => void) | null = null
-  let streamDone = false
-
-  function push(chunk: StreamChunk) {
-    if (resolveNext) {
-      const r = resolveNext
-      resolveNext = null
-      r({ value: chunk, done: false })
-    } else {
-      buffer.push(chunk)
-    }
-  }
-
-  function finish() {
-    streamDone = true
-    if (resolveNext) {
-      const r = resolveNext
-      resolveNext = null
-      r({ value: undefined as unknown as StreamChunk, done: true })
-    }
-  }
-
-  // Override parser to push into buffer
-  const liveParser = createParser({
-    onEvent(event) {
-      try {
-        push(JSON.parse(event.data) as StreamChunk)
-      } catch {
-        /* skip */
-      }
-    },
-  })
-
-  // Read stream in the background
   const reading = (async () => {
     try {
       for (;;) {
-        const { value, done } = await reader.read()
-        if (done) break
-        liveParser.feed(decoder.decode(value, { stream: true }))
+        const { value, done: streamDone } = await reader.read()
+        if (streamDone) break
+        parser.feed(decoder.decode(value, { stream: true }))
       }
     } finally {
       finish()
     }
   })()
 
-  // Yield from the live buffer
-  for (;;) {
-    if (buffer.length > 0) {
-      yield buffer.shift()!
-    } else if (streamDone) {
-      break
-    } else {
-      const result = await new Promise<IteratorResult<StreamChunk>>((resolve) => {
-        resolveNext = resolve
-      })
-      if (result.done) break
-      yield result.value
+  try {
+    for (;;) {
+      if (buffer.length > 0) {
+        yield buffer.shift()!
+      } else if (done) {
+        break
+      } else {
+        const result = await new Promise<IteratorResult<StageEvent>>((resolve) => {
+          resolveNext = resolve
+        })
+        if (result.done) break
+        yield result.value
+      }
     }
+  } finally {
+    await reading.catch(() => undefined)
   }
-
-  await reading
 }

@@ -1,15 +1,28 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 import uvicorn
+from alembic import command as alembic_command
+from alembic.config import Config as AlembicConfig
 
 from api.config import settings
 
 app = typer.Typer(
     name="api",
-    help="Multi-Agent Starter — API server CLI",
+    help="Invoice Processing Engine API CLI",
     no_args_is_help=True,
 )
+
+
+_ALEMBIC_INI_PATH = Path(__file__).resolve().parents[2] / "alembic.ini"
+
+
+def _alembic_config() -> AlembicConfig:
+    config = AlembicConfig(str(_ALEMBIC_INI_PATH))
+    config.set_main_option("script_location", str(_ALEMBIC_INI_PATH.parent / "alembic"))
+    return config
 
 
 @app.command()
@@ -41,3 +54,19 @@ def dev(
         reload=True,
         log_level="debug",
     )
+
+
+@app.command()
+def migrate(
+    revision: str = typer.Argument("head", help="Target Alembic revision (default: head)"),
+):
+    """Apply Alembic database migrations."""
+    alembic_command.upgrade(_alembic_config(), revision)
+
+
+@app.command()
+def downgrade(
+    revision: str = typer.Argument("-1", help="Target Alembic revision (default: previous)"),
+):
+    """Roll back Alembic database migrations."""
+    alembic_command.downgrade(_alembic_config(), revision)

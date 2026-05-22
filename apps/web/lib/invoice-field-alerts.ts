@@ -1,4 +1,4 @@
-import type { AnomalyFlag, ProcessingReport, ValidationRule } from "@/lib/invoice-types"
+import type { AnomalyFlag, ExtractedInvoice, ProcessingReport, ValidationRule } from "@/lib/invoice-types"
 
 export type AlertSource = "validation" | "anomaly"
 export type AlertSeverity = "high" | "medium" | "low"
@@ -126,7 +126,11 @@ function mapAnomalyFlag(alerts: FieldAlerts, flag: AnomalyFlag) {
     case "invoice_date_future":
     case "invoice_date_slightly_future":
     case "invoice_date_stale":
+    case "invoice_date_old":
       addAlert(alerts, "invoice_date", "anomaly", sev, msg)
+      break
+    case "due_date_future":
+      addAlert(alerts, "due_date", "anomaly", sev, msg)
       break
     case "due_date_before_invoice":
       addAlert(alerts, "due_date", "anomaly", sev, msg)
@@ -159,6 +163,61 @@ function mapAnomalyFlag(alerts: FieldAlerts, flag: AnomalyFlag) {
   }
 }
 
+function parseLocalDate(iso: string | null | undefined): Date | null {
+  if (!iso?.trim()) return null
+  const d = new Date(`${iso.trim().slice(0, 10)}T12:00:00`)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+function todayLocal(): Date {
+  const d = new Date()
+  d.setHours(12, 0, 0, 0)
+  return d
+}
+
+function applyAuthoritativeDateAlerts(alerts: FieldAlerts, inv: ExtractedInvoice) {
+  const ref = todayLocal()
+  const refLabel = ref.toISOString().slice(0, 10)
+  const invDate = parseLocalDate(inv.invoice_date)
+  const dueDate = parseLocalDate(inv.due_date)
+
+  const dueAlert = alerts.due_date
+  if (dueAlert && dueDate) {
+    dueAlert.messages = dueAlert.messages.filter((m) => {
+      if (/future/i.test(m) && dueDate.getTime() <= ref.getTime()) {
+        return false
+      }
+      return true
+    })
+    if (dueAlert.messages.length === 0) {
+      delete alerts.due_date
+    }
+  }
+
+  if (invDate) {
+    const daysOld = (ref.getTime() - invDate.getTime()) / 86400000
+    if (daysOld > 365) {
+      addAlert(
+        alerts,
+        "invoice_date",
+        "anomaly",
+        "medium",
+        `Invoice date is more than one year before today (${refLabel}).`,
+      )
+    }
+  }
+
+  if (dueDate && dueDate.getTime() > ref.getTime()) {
+    addAlert(
+      alerts,
+      "due_date",
+      "anomaly",
+      "medium",
+      `Due date is after today (${refLabel}).`,
+    )
+  }
+}
+
 export function buildFieldAlerts(report: ProcessingReport): FieldAlerts {
   const alerts: FieldAlerts = {}
 
@@ -168,6 +227,10 @@ export function buildFieldAlerts(report: ProcessingReport): FieldAlerts {
 
   for (const flag of report.anomalies?.flags ?? []) {
     mapAnomalyFlag(alerts, flag)
+  }
+
+  if (report.extracted_invoice) {
+    applyAuthoritativeDateAlerts(alerts, report.extracted_invoice)
   }
 
   return alerts

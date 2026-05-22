@@ -4,6 +4,7 @@ from datetime import date, timedelta
 
 ALLOWED_FUTURE_DAYS = 30
 ALLOWED_PAST_DAYS = 1000
+STALE_INVOICE_DAYS = 365
 
 
 def today() -> date:
@@ -43,3 +44,21 @@ def is_date_in_range(invoice_date: date | None, reference: date | None = None) -
             f"before reference date {ref.isoformat()}"
         )
     return True, f"Invoice date {invoice_date.isoformat()} is within allowed range (ref: {ref.isoformat()})"
+
+
+def is_after_reference(value: date | None, reference: date | None = None) -> bool:
+    if value is None:
+        return False
+    ref = reference or today()
+    return value > ref
+
+
+def is_more_than_days_before_reference(
+    value: date | None,
+    days: int,
+    reference: date | None = None,
+) -> bool:
+    if value is None:
+        return False
+    ref = reference or today()
+    return value < ref - timedelta(days=days)

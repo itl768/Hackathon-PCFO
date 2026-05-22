@@ -273,9 +273,12 @@ Evaluate in order:
    - Unusually large single lines vs document type
    - Do NOT flag amounts solely because they are round numbers
 
-2. **Date anomalies** (relative to {today})
-   - Invoice date far in future or unreasonably stale
+2. **Date anomalies** (relative to {today} ONLY — not relative to invoice date)
+   - "Future" means strictly AFTER {today}, not merely after the invoice date
+   - A due date after the invoice date but still before {today} is normal (e.g. Net 14) — do NOT flag as future
+   - Invoice date far in future or more than one year before {today}
    - Due date before invoice date
+   - Due date after {today} may be flagged; due date before {today} is past due, not future
    - Service periods that do not align with invoice date
 
 3. **Vendor & identity**

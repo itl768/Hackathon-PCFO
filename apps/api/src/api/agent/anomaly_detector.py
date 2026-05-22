@@ -6,7 +6,16 @@ from datetime import timedelta
 
 from openai import AsyncOpenAI
 
-from api.agent.date_utils import ALLOWED_FUTURE_DAYS, ALLOWED_PAST_DAYS, parse_date, today, today_iso
+from api.agent.date_utils import (
+    ALLOWED_FUTURE_DAYS,
+    ALLOWED_PAST_DAYS,
+    STALE_INVOICE_DAYS,
+    is_after_reference,
+    is_more_than_days_before_reference,
+    parse_date,
+    today,
+    today_iso,
+)
 from api.agent.invoice_models import (
     AnomalyFlag,
     AnomalyResult,
@@ -48,12 +57,34 @@ def _rule_based_flags(invoice: ExtractedInvoice, validation: ValidationResult) -
             )
         )
 
-    if inv_date and inv_date < ref - timedelta(days=ALLOWED_PAST_DAYS):
+    if inv_date and is_more_than_days_before_reference(inv_date, ALLOWED_PAST_DAYS, ref):
         flags.append(
             AnomalyFlag(
                 flag_type="invoice_date_stale",
                 severity="medium",
                 description=f"Invoice date is older than {ALLOWED_PAST_DAYS} days",
+            )
+        )
+    elif inv_date and is_more_than_days_before_reference(inv_date, STALE_INVOICE_DAYS, ref):
+        flags.append(
+            AnomalyFlag(
+                flag_type="invoice_date_old",
+                severity="medium",
+                description=(
+                    f"Invoice date {inv_date.isoformat()} is more than one year before today "
+                    f"({ref.isoformat()})"
+                ),
+            )
+        )
+
+    if due_date and is_after_reference(due_date, ref):
+        flags.append(
+            AnomalyFlag(
+                flag_type="due_date_future",
+                severity="medium",
+                description=(
+                    f"Due date {due_date.isoformat()} is after today ({ref.isoformat()})"
+                ),
             )
         )
 
@@ -136,6 +167,35 @@ def _rule_based_flags(invoice: ExtractedInvoice, validation: ValidationResult) -
     return flags
 
 
+def _filter_llm_date_flags(
+    llm_flags: list[AnomalyFlag],
+    invoice: ExtractedInvoice,
+    ref: date,
+) -> list[AnomalyFlag]:
+    inv_date = parse_date(invoice.invoice_date)
+    due_date = parse_date(invoice.due_date)
+    filtered: list[AnomalyFlag] = []
+
+    for flag in llm_flags:
+        text = flag.description.lower()
+        if due_date and due_date <= ref and "due" in text and "future" in text:
+            continue
+        if inv_date and inv_date <= ref and "invoice" in text and "future" in text:
+            continue
+        if (
+            due_date
+            and inv_date
+            and due_date > inv_date
+            and due_date <= ref
+            and "due" in text
+            and "future" in text
+        ):
+            continue
+        filtered.append(flag)
+
+    return filtered
+
+
 def _compute_risk_score(flags: list[AnomalyFlag], validation: ValidationResult, llm_score: int) -> int:
     severity_weights = {"low": 8, "medium": 18, "high": 28}
     flag_score = min(60, sum(severity_weights.get(f.severity, 12) for f in flags))
@@ -148,10 +208,11 @@ async def detect_anomalies(
     invoice: ExtractedInvoice,
     validation: ValidationResult,
 ) -> AnomalyResult:
+    ref = today()
     rule_flags = _rule_based_flags(invoice, validation)
 
     client = AsyncOpenAI(api_key=settings.openai_api_key)
-    ref_today = today_iso()
+    ref_today = ref.isoformat()
     context = (
         f"Reference date (today): {ref_today}\n\n"
         f"Invoice Data:\n{invoice.model_dump_json(indent=2)}\n\n"
@@ -184,6 +245,7 @@ async def detect_anomalies(
             if ft not in seen_types:
                 llm_flags.append(AnomalyFlag(**f))
                 seen_types.add(ft)
+        llm_flags = _filter_llm_date_flags(llm_flags, invoice, ref)
     except Exception:
         logger.exception("LLM anomaly detection failed, using rule-based only")
 

@@ -155,16 +155,26 @@ def _rule_based_flags(invoice: ExtractedInvoice, validation: ValidationResult) -
             )
         )
 
-    if invoice.vendor_name and len(invoice.vendor_name.strip()) < 3:
-        flags.append(
-            AnomalyFlag(
-                flag_type="suspicious_vendor_name",
-                severity="medium",
-                description="Vendor name is unusually short",
-            )
-        )
-
     return flags
+
+
+def _is_discarded_vendor_flag(flag: AnomalyFlag) -> bool:
+    text = flag.description.lower()
+    ft = flag.flag_type.lower()
+    if "vendor" not in text and "vendor" not in ft:
+        return False
+    discarded = (
+        "generic",
+        "non-specific",
+        "non specific",
+        "unspecific",
+        "not specific",
+        "vague",
+        "unusually short",
+        "too short",
+        "suspicious_vendor",
+    )
+    return any(kw in text or kw in ft for kw in discarded)
 
 
 def _filter_llm_date_flags(
@@ -185,6 +195,8 @@ def _filter_llm_date_flags(
         ):
             continue
         if inv_date and inv_date <= ref and "invoice" in text and "future" in text:
+            continue
+        if _is_discarded_vendor_flag(flag):
             continue
         filtered.append(flag)
 

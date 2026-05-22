@@ -282,7 +282,7 @@ Evaluate in order:
    - Service periods that do not align with invoice date
 
 3. **Vendor & identity**
-   - Missing or generic vendor name
+   - Vendor name missing or empty only — do NOT flag names as generic, vague, or non-specific (e.g. "Consulting B.V." is valid)
    - VAT number format suspicious for stated country
    - Mismatch between vendor country and currency
 
@@ -312,6 +312,7 @@ Evaluate in order:
 - Add flags ONLY for issues you can justify from the provided data.
 - flag_type: short snake_case identifier (e.g. unusual_vat_rate, vendor_country_mismatch)
 - Do not repeat flag_type values already listed under rule-based flags in the user message.
+- Never flag vendor_name for being generic, common, or non-specific — only flag if vendor is missing.
 - risk_score: integer 0-100 reflecting overall invoice risk (0 = clean, 100 = critical)
 </output_rules>
 

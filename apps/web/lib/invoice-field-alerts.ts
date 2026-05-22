@@ -152,12 +152,16 @@ function mapAnomalyFlag(alerts: FieldAlerts, flag: AnomalyFlag) {
       addAlert(alerts, "invoice_number", "anomaly", sev, msg)
       break
     case "suspicious_vendor_name":
-      addAlert(alerts, "vendor_name", "anomaly", sev, msg)
       break
     default:
       if (/due date/i.test(msg)) addAlert(alerts, "due_date", "anomaly", sev, msg)
       if (/invoice date/i.test(msg)) addAlert(alerts, "invoice_date", "anomaly", sev, msg)
-      if (/vendor/i.test(msg)) addAlert(alerts, "vendor_name", "anomaly", sev, msg)
+      if (
+        /vendor/i.test(msg) &&
+        !/(generic|non-specific|non specific|unspecific|not specific|vague)/i.test(msg)
+      ) {
+        addAlert(alerts, "vendor_name", "anomaly", sev, msg)
+      }
       if (/invoice number/i.test(msg)) addAlert(alerts, "invoice_number", "anomaly", sev, msg)
       if (/total|amount/i.test(msg)) addAlert(alerts, "total_amount", "anomaly", sev, msg)
       if (lineIdx !== null) addAlert(alerts, `line:${lineIdx}`, "anomaly", sev, msg)
@@ -240,9 +244,22 @@ export function buildFieldAlerts(report: ProcessingReport): FieldAlerts {
 
   if (report.extracted_invoice) {
     applyAuthoritativeDateAlerts(alerts, report.extracted_invoice)
+    stripGenericVendorAlerts(alerts)
   }
 
   return alerts
+}
+
+function stripGenericVendorAlerts(alerts: FieldAlerts) {
+  const vendorAlert = alerts.vendor_name
+  if (!vendorAlert) return
+
+  vendorAlert.messages = vendorAlert.messages.filter(
+    (m) => !/(generic|non-specific|non specific|unspecific|not specific|vague)/i.test(m),
+  )
+  if (vendorAlert.messages.length === 0) {
+    delete alerts.vendor_name
+  }
 }
 
 export function getTabNotifications(report: ProcessingReport): TabNotifications {

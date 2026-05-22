@@ -32,7 +32,11 @@ def generate_report(
             "Confirm with vendor if this is a legitimate resubmission",
             "Archive this duplicate",
         ]
-    elif validation.all_passed and anomalies.risk_score < 30:
+    elif (
+        validation.all_passed
+        and anomalies.risk_score < 30
+        and not any(f.flag_type == "high_value" for f in anomalies.flags)
+    ):
         decision = ApprovalStatus.AUTO_APPROVE.value
         confidence = "high"
         summary = (
@@ -82,7 +86,10 @@ def generate_report(
         agent_outputs={
             "document_reader": "Text extracted successfully",
             "dedup_vector": dedup_vector.model_dump(),
-            "extractor": {"fields_extracted": len(extracted.model_fields_set)},
+            "extractor": {
+                "line_items": len(extracted.line_items),
+                "vendor": extracted.vendor_name,
+            },
             "dedup_exact": dedup_exact.model_dump(),
             "validator": {"passed": validation.all_passed, "failed_count": validation.failed_count},
             "anomaly_detector": {"risk_score": anomalies.risk_score, "flags": len(anomalies.flags)},

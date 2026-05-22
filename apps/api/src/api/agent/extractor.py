@@ -5,12 +5,15 @@ import logging
 
 from openai import AsyncOpenAI
 
+from api.agent.date_utils import today_iso
 from api.agent.invoice_models import ExtractedInvoice
 from api.config import settings
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT = """You are an expert invoice data extractor. Given raw invoice text, extract ALL fields into structured JSON.
+SYSTEM_PROMPT_TEMPLATE = """You are an expert invoice data extractor. Given raw invoice text, extract ALL fields into structured JSON.
+
+Today's date is {today}. Use this when interpreting relative dates. Invoice dates should be realistic relative to today.
 
 Return a JSON object with these exact fields:
 {
@@ -46,11 +49,12 @@ Rules:
 
 async def extract_invoice(raw_text: str) -> ExtractedInvoice:
     client = AsyncOpenAI(api_key=settings.openai_api_key)
+    ref_today = today_iso()
 
     response = await client.chat.completions.create(
         model=settings.openai_model,
         messages=[
-            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "system", "content": SYSTEM_PROMPT_TEMPLATE.replace("{today}", ref_today)},
             {"role": "user", "content": f"Extract all fields from this invoice:\n\n{raw_text}"},
         ],
         response_format={"type": "json_object"},

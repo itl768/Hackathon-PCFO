@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import date, timedelta
 from typing import AsyncGenerator
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
@@ -26,8 +27,8 @@ From: TechFlow Solutions Ltd.
 123 Innovation Street, London, UK
 
 Invoice Number: TFS-2024-001
-Invoice Date: 2024-11-15
-Due Date: 2024-12-15
+Invoice Date: {invoice_date}
+Due Date: {due_date}
 
 Bill To:
 Gapstars Engineering
@@ -56,7 +57,7 @@ Bank: HSBC UK | Account: 12345678 | Sort: 40-20-10""",
 
 Vendor: QuickBill Corp
 Invoice #: QBC-9921
-Invoice Date: 2024-11-20
+Invoice Date: {invoice_date}
 
 Bill To: Gapstars Engineering
 
@@ -83,8 +84,8 @@ From: GlobalTech Enterprises Inc.
 500 Enterprise Blvd, San Francisco, CA 94105
 
 Invoice Number: GTE-2024-5547
-Date: 2024-11-18
-Due Date: 2024-12-03
+Date: {invoice_date}
+Due Date: {due_date}
 
 Bill To:
 Gapstars Engineering
@@ -113,12 +114,27 @@ class ChatRequest(BaseModel):
     thread_id: str = ""
 
 
+def _materialize_samples() -> list[dict]:
+    today = date.today()
+    invoice_date = today.isoformat()
+    due_date = (today + timedelta(days=30)).isoformat()
+    out = []
+    for s in SAMPLE_INVOICES:
+        text = s["text"].format(invoice_date=invoice_date, due_date=due_date)
+        out.append(
+            {
+                "id": s["id"],
+                "name": s["name"],
+                "description": s["description"],
+                "text": text,
+            }
+        )
+    return out
+
+
 @router.get("/samples")
 async def get_samples():
-    return [
-        {"id": s["id"], "name": s["name"], "description": s["description"], "text": s["text"]}
-        for s in SAMPLE_INVOICES
-    ]
+    return _materialize_samples()
 
 
 @router.get("/history")
@@ -339,7 +355,7 @@ async def chat_with_invoices(request: Request, body: ChatRequest):
                 {
                     "role": "system",
                     "content": (
-                        "You are Pocket CFO, a financial assistant for invoice processing. "
+                        "You are an invoice processing assistant. "
                         "Answer questions about processed invoices using the context below. "
                         "Be concise, accurate, and helpful. Reference specific invoice numbers "
                         "and amounts when relevant. If no data is available, say so."

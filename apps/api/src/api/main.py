@@ -48,7 +48,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="Pocket CFO — Invoice Processing API",
+        title="Invoice Processing API",
         version="1.0.0",
         description="Multi-agent invoice processing workflow with pgvector deduplication",
         lifespan=lifespan,

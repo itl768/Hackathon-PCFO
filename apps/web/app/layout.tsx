@@ -13,7 +13,7 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Pocket CFO — Invoice Processing",
+  title: "Invoice Processing",
   description: "Multi-agent invoice processing workflow with pgvector deduplication",
 }
 

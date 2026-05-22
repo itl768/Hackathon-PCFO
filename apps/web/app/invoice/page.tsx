@@ -122,9 +122,9 @@ export default function InvoicePage() {
             <FileText className="h-4 w-4 text-primary-foreground" />
           </div>
           <div>
-            <h1 className="text-sm font-bold">Pocket CFO</h1>
+            <h1 className="text-sm font-bold">Invoice Processing</h1>
             <p className="text-[10px] text-muted-foreground">
-              Multi-Agent Invoice Processing
+              Multi-Agent Workflow
             </p>
           </div>
         </div>

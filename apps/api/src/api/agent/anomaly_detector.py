@@ -13,6 +13,7 @@ from api.agent.invoice_models import (
     ExtractedInvoice,
     ValidationResult,
 )
+from api.agent.prompts import InvoicePrompts
 from api.config import settings
 
 logger = logging.getLogger(__name__)
@@ -143,23 +144,6 @@ def _compute_risk_score(flags: list[AnomalyFlag], validation: ValidationResult, 
     return min(100, blended)
 
 
-SYSTEM_PROMPT_TEMPLATE = """You are a financial fraud and anomaly detection specialist.
-
-Today's reference date is {today} (use this for all date comparisons — do NOT assume a different year).
-
-Analyze the invoice and validation results. Look for:
-- Unusual amounts, date anomalies relative to {today}
-- Missing fields, vendor oddities, quantity/price inconsistencies
-- Patterns suggesting fraud or data entry errors
-- Do not flag amounts solely because they are round numbers
-
-Return JSON only:
-{{
-  "flags": [{{"flag_type": "string", "severity": "low|medium|high", "description": "string"}}],
-  "risk_score": 0-100
-}}"""
-
-
 async def detect_anomalies(
     invoice: ExtractedInvoice,
     validation: ValidationResult,
@@ -181,14 +165,12 @@ async def detect_anomalies(
     llm_score = 0
 
     try:
+        system_prompt = InvoicePrompts.anomaly_system(ref_today)
         response = await client.chat.completions.create(
             model=settings.openai_model,
             messages=[
-                {
-                    "role": "system",
-                    "content": SYSTEM_PROMPT_TEMPLATE.replace("{today}", ref_today),
-                },
-                {"role": "user", "content": f"Analyze this invoice for additional anomalies:\n\n{context}"},
+                {"role": "system", "content": system_prompt.content},
+                {"role": "user", "content": InvoicePrompts.anomaly_user(context)},
             ],
             response_format={"type": "json_object"},
             temperature=0.0,

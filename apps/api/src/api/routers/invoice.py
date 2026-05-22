@@ -416,20 +416,21 @@ async def chat_with_invoices(request: Request, body: ChatRequest):
 
         from openai import AsyncOpenAI
 
+        from api.agent.prompts import InvoicePrompts
+
         client = AsyncOpenAI(api_key=settings.openai_api_key)
+        chat_system = InvoicePrompts.invoice_chat_system()
         stream = await client.chat.completions.create(
             model=settings.openai_model,
             messages=[
+                {"role": "system", "content": chat_system.content},
                 {
-                    "role": "system",
+                    "role": "user",
                     "content": (
-                        "You are an invoice processing assistant. "
-                        "Answer questions about processed invoices using the context below. "
-                        "Be concise, accurate, and helpful. Reference specific invoice numbers "
-                        "and amounts when relevant. If no data is available, say so."
+                        f"<CONTEXT>\n{context}\n</CONTEXT>\n\n"
+                        f"<USER_QUESTION>\n{body.message}\n</USER_QUESTION>"
                     ),
                 },
-                {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {body.message}"},
             ],
             stream=True,
         )

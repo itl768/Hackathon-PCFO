@@ -1,7 +1,8 @@
 # Multi-Agent Starter
 
 A production-ready monorepo starter for building Multi-Agent Systems with LangGraph.
-commit 2
+
+**Hackathon judges & live demo:** see **[HACKATHON_DEMO.md](./HACKATHON_DEMO.md)** — agent roster, LangGraph flow, architecture, minute-by-minute script, and Q&A.
 ## Stack
 
 | Layer | Technology |

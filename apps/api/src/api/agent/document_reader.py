@@ -5,16 +5,10 @@ import logging
 
 from openai import AsyncOpenAI
 
+from api.agent.prompts import InvoicePrompts
 from api.config import settings
 
 logger = logging.getLogger(__name__)
-
-EXTRACT_PROMPT = (
-    "Extract ALL text content from this invoice document. "
-    "Return the complete text exactly as it appears, preserving structure, "
-    "numbers, dates, line items, totals, and all details. "
-    "Do not summarize or interpret — just extract the raw text faithfully."
-)
 
 
 async def read_document(file_bytes: bytes, content_type: str, filename: str) -> str:
@@ -70,7 +64,7 @@ async def _read_image(file_bytes: bytes, content_type: str) -> str:
             {
                 "role": "user",
                 "content": [
-                    {"type": "text", "text": EXTRACT_PROMPT},
+                    {"type": "text", "text": InvoicePrompts.document_reader().content},
                     {
                         "type": "image_url",
                         "image_url": {"url": f"data:{media_type};base64,{b64}"},

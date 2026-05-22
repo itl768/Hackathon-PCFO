@@ -10,9 +10,17 @@ import {
   Search,
   ClipboardList,
 } from "lucide-react"
-import { useState } from "react"
+import { useMemo, useState } from "react"
 
+import {
+  buildFieldAlerts,
+  getFieldAlert,
+  getTabNotifications,
+  lineRowHasAlert,
+  type FieldAlerts,
+} from "@/lib/invoice-field-alerts"
 import type { ProcessingReport } from "@/lib/invoice-types"
+import { cn } from "@/lib/utils"
 import { RiskGauge } from "./risk-gauge"
 
 interface ResultsPanelProps {
@@ -30,6 +38,15 @@ const TABS: { id: Tab; label: string; icon: React.ComponentType<{ className?: st
 
 export function ResultsPanel({ report }: ResultsPanelProps) {
   const [activeTab, setActiveTab] = useState<Tab>("extracted")
+
+  const fieldAlerts = useMemo(
+    () => (report ? buildFieldAlerts(report) : {}),
+    [report],
+  )
+  const tabNotifications = useMemo(
+    () => (report ? getTabNotifications(report) : null),
+    [report],
+  )
 
   if (!report) {
     return (
@@ -65,7 +82,6 @@ export function ResultsPanel({ report }: ResultsPanelProps) {
         Results
       </h3>
 
-      {/* Decision Badge + Risk Gauge */}
       <div className="flex items-center gap-4">
         <RiskGauge score={report.risk_score} size={90} />
         <div className="flex flex-col gap-2">
@@ -80,34 +96,47 @@ export function ResultsPanel({ report }: ResultsPanelProps) {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="flex rounded-lg border bg-muted/30 p-0.5">
-        {TABS.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[10px] font-medium transition-all ${
-              activeTab === tab.id
-                ? "bg-background shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <tab.icon className="h-3 w-3" />
-            {tab.label}
-          </button>
-        ))}
+        {TABS.map((tab) => {
+          const hasNotification = tabNotifications?.[tab.id] ?? false
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "relative flex flex-1 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[10px] font-medium transition-all",
+                activeTab === tab.id
+                  ? "bg-background shadow-sm"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              <tab.icon className="h-3 w-3" />
+              {tab.label}
+              {hasNotification && (
+                <span
+                  className="absolute right-1 top-0.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-background"
+                  aria-label={`${tab.label} has notifications`}
+                />
+              )}
+            </button>
+          )
+        })}
       </div>
 
-      {/* Tab Content */}
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {activeTab === "extracted" && <ExtractedDataTab report={report} />}
+        {activeTab === "extracted" && (
+          <ExtractedDataTab report={report} fieldAlerts={fieldAlerts} />
+        )}
         {activeTab === "validation" && <ValidationTab report={report} />}
         {activeTab === "anomalies" && <AnomaliesTab report={report} />}
-        {activeTab === "report" && <ReportTab report={report} />}
+        {activeTab === "report" && (
+          <ReportTab report={report} needsAttention={tabNotifications?.report ?? false} />
+        )}
       </div>
 
-      {/* Export Button */}
       <button
+        type="button"
         onClick={handleExport}
         className="flex items-center justify-center gap-2 rounded-lg border bg-muted/30 px-3 py-2 text-xs font-medium transition-all hover:bg-muted"
       >
@@ -118,23 +147,34 @@ export function ResultsPanel({ report }: ResultsPanelProps) {
   )
 }
 
-function ExtractedDataTab({ report }: { report: ProcessingReport }) {
+function ExtractedDataTab({
+  report,
+  fieldAlerts,
+}: {
+  report: ProcessingReport
+  fieldAlerts: FieldAlerts
+}) {
   const inv = report.extracted_invoice
   if (!inv) return <p className="text-xs text-muted-foreground">No data extracted</p>
 
   return (
     <div className="flex flex-col gap-3">
       <div className="grid grid-cols-2 gap-2">
-        <Field label="Vendor" value={inv.vendor_name} />
-        <Field label="Invoice #" value={inv.invoice_number} />
-        <Field label="Payment ref." value={inv.payment_reference} />
-        <Field label="IBAN" value={inv.vendor_iban} />
-        <Field label="VAT no." value={inv.vendor_vat_number} />
-        <Field label="Country" value={inv.vendor_country} />
-        <Field label="Date" value={inv.invoice_date} />
-        <Field label="Due Date" value={inv.due_date} />
-        <Field label="Currency" value={inv.currency} />
-        <Field label="VAT reversed" value={inv.vat_reversed ? "Yes" : "No"} />
+        <Field label="Vendor" value={inv.vendor_name} fieldKey="vendor_name" alerts={fieldAlerts} />
+        <Field label="Invoice #" value={inv.invoice_number} fieldKey="invoice_number" alerts={fieldAlerts} />
+        <Field label="Payment ref." value={inv.payment_reference} fieldKey="payment_reference" alerts={fieldAlerts} />
+        <Field label="IBAN" value={inv.vendor_iban} fieldKey="vendor_iban" alerts={fieldAlerts} />
+        <Field label="VAT no." value={inv.vendor_vat_number} fieldKey="vendor_vat_number" alerts={fieldAlerts} />
+        <Field label="Country" value={inv.vendor_country} fieldKey="vendor_country" alerts={fieldAlerts} />
+        <Field label="Date" value={inv.invoice_date} fieldKey="invoice_date" alerts={fieldAlerts} />
+        <Field label="Due Date" value={inv.due_date} fieldKey="due_date" alerts={fieldAlerts} />
+        <Field label="Currency" value={inv.currency} fieldKey="currency" alerts={fieldAlerts} />
+        <Field
+          label="VAT reversed"
+          value={inv.vat_reversed ? "Yes" : "No"}
+          fieldKey="vat_reversed"
+          alerts={fieldAlerts}
+        />
       </div>
 
       {inv.line_items.length > 0 && (
@@ -155,18 +195,28 @@ function ExtractedDataTab({ report }: { report: ProcessingReport }) {
                 </tr>
               </thead>
               <tbody>
-                {inv.line_items.map((item, i) => (
-                  <tr key={i} className="border-b last:border-0">
-                    <td className="px-2 py-1 text-muted-foreground">{item.gl_account || "—"}</td>
-                    <td className="px-2 py-1">{item.description}</td>
-                    <td className="px-2 py-1 text-right">{item.net_amount.toFixed(2)}</td>
-                    <td className="px-2 py-1 text-right">{item.vat_rate ?? 0}%</td>
-                    <td className="px-2 py-1 text-right">{item.vat_amount.toFixed(2)}</td>
-                    <td className="px-2 py-1 text-right font-medium">
-                      {item.line_total.toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
+                {inv.line_items.map((item, i) => {
+                  const rowAlert = lineRowHasAlert(fieldAlerts, i)
+                  return (
+                    <tr
+                      key={i}
+                      className={cn(
+                        "border-b last:border-0",
+                        rowAlert && "field-alert-flash bg-red-500/5",
+                      )}
+                      title={rowAlert?.messages.join(" · ")}
+                    >
+                      <td className="px-2 py-1 text-muted-foreground">{item.gl_account || "—"}</td>
+                      <td className="px-2 py-1">{item.description}</td>
+                      <td className="px-2 py-1 text-right">{item.net_amount.toFixed(2)}</td>
+                      <td className="px-2 py-1 text-right">{item.vat_rate ?? 0}%</td>
+                      <td className="px-2 py-1 text-right">{item.vat_amount.toFixed(2)}</td>
+                      <td className="px-2 py-1 text-right font-medium">
+                        {item.line_total.toFixed(2)}
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -174,9 +224,15 @@ function ExtractedDataTab({ report }: { report: ProcessingReport }) {
       )}
 
       <div className="grid grid-cols-3 gap-2">
-        <Field label="Subtotal" value={inv.subtotal?.toFixed(2)} />
-        <Field label="VAT Total" value={inv.vat_total?.toFixed(2)} />
-        <Field label="Total" value={inv.total_amount?.toFixed(2)} highlight />
+        <Field label="Subtotal" value={inv.subtotal?.toFixed(2)} fieldKey="subtotal" alerts={fieldAlerts} />
+        <Field label="VAT Total" value={inv.vat_total?.toFixed(2)} fieldKey="vat_total" alerts={fieldAlerts} />
+        <Field
+          label="Total"
+          value={inv.total_amount?.toFixed(2)}
+          fieldKey="total_amount"
+          alerts={fieldAlerts}
+          highlight
+        />
       </div>
     </div>
   )
@@ -191,9 +247,12 @@ function ValidationTab({ report }: { report: ProcessingReport }) {
       {val.rules.map((rule, i) => (
         <div
           key={i}
-          className={`flex items-start gap-2 rounded-lg border p-2.5 ${
-            rule.passed ? "border-emerald-500/20 bg-emerald-500/5" : "border-red-500/20 bg-red-500/5"
-          }`}
+          className={cn(
+            "flex items-start gap-2 rounded-lg border p-2.5",
+            rule.passed
+              ? "border-emerald-500/20 bg-emerald-500/5"
+              : "field-alert-flash border-red-500/40 bg-red-500/5",
+          )}
         >
           {rule.passed ? (
             <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-500" />
@@ -231,32 +290,50 @@ function AnomaliesTab({ report }: { report: ProcessingReport }) {
   return (
     <div className="flex flex-col gap-2">
       {anomalies.flags.map((flag, i) => (
-        <div key={i} className="rounded-lg border p-2.5">
-          <div className="mb-1 flex items-center gap-2">
-            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-            <span className="text-xs font-medium">{flag.flag_type}</span>
-            <span
-              className={`rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase ${severityColor(flag.severity)}`}
-            >
-              {flag.severity}
-            </span>
+          <div
+            key={i}
+            className="field-alert-flash rounded-lg border border-red-500/40 bg-red-500/5 p-2.5"
+          >
+            <div className="mb-1 flex items-center gap-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+              <span className="text-xs font-medium">{flag.flag_type}</span>
+              <span
+                className={`rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase ${severityColor(flag.severity)}`}
+              >
+                {flag.severity}
+              </span>
+            </div>
+            <p className="text-[10px] text-muted-foreground">{flag.description}</p>
           </div>
-          <p className="text-[10px] text-muted-foreground">{flag.description}</p>
-        </div>
       ))}
     </div>
   )
 }
 
-function ReportTab({ report }: { report: ProcessingReport }) {
+function ReportTab({
+  report,
+  needsAttention,
+}: {
+  report: ProcessingReport
+  needsAttention: boolean
+}) {
   return (
     <div className="flex flex-col gap-3">
-      <div className="rounded-lg border bg-muted/20 p-3">
+      <div
+        className={cn(
+          "rounded-lg border bg-muted/20 p-3",
+          needsAttention && "field-alert-flash border-amber-500/50 bg-amber-500/5",
+        )}
+      >
         <p className="text-xs leading-relaxed">{report.summary}</p>
       </div>
 
       {report.next_steps.length > 0 && (
-        <div>
+        <div
+          className={cn(
+            needsAttention && "field-alert-flash rounded-lg border border-amber-500/40 bg-amber-500/5 p-2",
+          )}
+        >
           <p className="mb-1 text-[10px] font-semibold uppercase text-muted-foreground">
             Next Steps
           </p>
@@ -277,18 +354,43 @@ function ReportTab({ report }: { report: ProcessingReport }) {
 function Field({
   label,
   value,
+  fieldKey,
+  alerts,
   highlight,
 }: {
   label: string
   value: string | null | undefined
+  fieldKey: string
+  alerts: FieldAlerts
   highlight?: boolean
 }) {
+  const alert = getFieldAlert(alerts, fieldKey)
+
   return (
-    <div className="rounded-lg border bg-muted/20 p-2">
-      <p className="text-[9px] font-medium uppercase text-muted-foreground">{label}</p>
-      <p className={`text-xs ${highlight ? "font-bold" : "font-medium"}`}>
+    <div
+      className={cn(
+        "rounded-lg border bg-muted/20 p-2",
+        alert && "field-alert-flash bg-red-500/5",
+      )}
+      title={alert?.messages.join("\n")}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <p className="text-[9px] font-medium uppercase text-muted-foreground">{label}</p>
+        {alert && (
+          <span className="flex items-center gap-0.5" title="Field has validation or anomaly alert">
+            <span className="h-1.5 w-1.5 rounded-full bg-red-500" />
+            <AlertTriangle className="h-3 w-3 text-red-500" />
+          </span>
+        )}
+      </div>
+      <p className={cn("text-xs", highlight || alert ? "font-bold" : "font-medium")}>
         {value || "—"}
       </p>
+      {alert && (
+        <p className="mt-1 text-[9px] leading-snug text-red-600 dark:text-red-400">
+          {alert.messages[0]}
+        </p>
+      )}
     </div>
   )
 }

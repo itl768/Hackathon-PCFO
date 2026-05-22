@@ -127,3 +127,21 @@
     @apply font-sans;
     }
 }
+
+@keyframes field-alert-flash {
+  0%,
+  100% {
+    border-color: oklch(0.577 0.245 27.325 / 0.95);
+    box-shadow: 0 0 0 0 oklch(0.577 0.245 27.325 / 0.35);
+  }
+  50% {
+    border-color: oklch(0.75 0.18 55 / 1);
+    box-shadow: 0 0 0 3px oklch(0.577 0.245 27.325 / 0.25);
+  }
+}
+
+.field-alert-flash {
+  animation: field-alert-flash 1.2s ease-in-out infinite;
+  border-width: 2px;
+  border-style: solid;
+}

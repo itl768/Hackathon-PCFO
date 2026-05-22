@@ -19,6 +19,16 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/invoice", tags=["invoice"])
 
+STEP_START_MESSAGES: dict[str, str] = {
+    "dedup_file": "Checking file hash against processed invoices…",
+    "extract": "Extracting vendor, dates, line items, and totals…",
+    "dedup_exact": "Matching invoice number, date, amount, and filename…",
+    "validate": "Running validation rules…",
+    "anomaly_detect": "Scoring risk and detecting anomalies…",
+    "embed": "Generating vector embedding for RAG search…",
+    "respond": "Merging agent outputs and deciding approval…",
+}
+
 SAMPLE_INVOICES = [
     {
         "id": "clean",
@@ -258,9 +268,11 @@ async def process_invoice(
             "dedup_exact_result": None,
             "validation_result": None,
             "anomaly_result": None,
+            "embedding_stored": False,
             "report": None,
             "current_step": "start",
             "agent_log": [],
+            "skipped_steps": [],
         }
 
         try:
@@ -271,11 +283,27 @@ async def process_invoice(
 
                     yield {
                         "event": "step_start",
-                        "data": json.dumps({"agent": step, "message": f"Running {step}..."}),
+                        "data": json.dumps(
+                            {
+                                "agent": step,
+                                "message": STEP_START_MESSAGES.get(step, f"Running {step}…"),
+                            }
+                        ),
                     }
 
                     for log_entry in logs:
                         yield {"event": "agent_log", "data": json.dumps(log_entry)}
+
+                    for skip in update.get("skipped_steps") or []:
+                        yield {
+                            "event": "step_skip",
+                            "data": json.dumps(
+                                {
+                                    "agent": skip,
+                                    "message": "Skipped — duplicate detected earlier",
+                                }
+                            ),
+                        }
 
                     yield {
                         "event": "step_complete",

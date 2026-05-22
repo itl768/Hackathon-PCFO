@@ -11,9 +11,10 @@ interface AgentLogProps {
 
 const AGENT_COLORS: Record<string, string> = {
   "Doc Reader": "text-sky-500",
-  "DeDup Vector": "text-violet-500",
+  "DeDup File": "text-violet-500",
   Extractor: "text-blue-500",
   "DeDup MCP": "text-purple-500",
+  Embeddings: "text-cyan-500",
   Validator: "text-emerald-500",
   "Anomaly Detector": "text-amber-500",
   Responder: "text-rose-500",

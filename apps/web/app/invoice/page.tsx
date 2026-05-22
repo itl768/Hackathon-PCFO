@@ -25,11 +25,12 @@ type Tab = "process" | "chat" | "history"
 
 const INITIAL_STEPS: PipelineStepState[] = [
   { id: "doc_reader", label: "Document Reader", status: "idle" },
-  { id: "dedup_file", label: "DeDup (file hash)", status: "idle" },
+  { id: "dedup_file", label: "DeDup · File Hash", status: "idle" },
   { id: "extract", label: "Extractor", status: "idle" },
-  { id: "dedup_exact", label: "DeDup MCP (Postgres)", status: "idle" },
+  { id: "dedup_exact", label: "DeDup · History", status: "idle" },
   { id: "validate", label: "Validator", status: "idle" },
   { id: "anomaly_detect", label: "Anomaly Detector", status: "idle" },
+  { id: "embed", label: "Embeddings · pgvector", status: "idle" },
   { id: "respond", label: "Responder", status: "idle" },
 ]
 
@@ -41,6 +42,7 @@ export default function InvoicePage() {
   const [report, setReport] = useState<ProcessingReport | null>(null)
   const [agentLog, setAgentLog] = useState<AgentLogEntry[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
+  const [activeStepId, setActiveStepId] = useState<string | null>(null)
   const [source, setSource] = useState<InvoiceSource | null>(null)
   useEffect(() => {
     fetchSamples().then(setSamples).catch(console.error)
@@ -62,6 +64,7 @@ export default function InvoicePage() {
     setSteps(INITIAL_STEPS)
     setReport(null)
     setAgentLog([])
+    setActiveStepId(null)
     setSource((prev) => {
       revokeSourcePreview(prev)
       return null
@@ -90,6 +93,7 @@ export default function InvoicePage() {
       setSteps(INITIAL_STEPS)
       setReport(null)
       setAgentLog([])
+      setActiveStepId(null)
       setIsProcessing(true)
 
       try {
@@ -99,7 +103,17 @@ export default function InvoicePage() {
           switch (evt.event) {
             case "step_start": {
               const agent = data.agent as PipelineStep
+              setActiveStepId(agent)
               updateStep(agent, { status: "running", message: data.message as string })
+              break
+            }
+
+            case "step_skip": {
+              const agent = data.agent as PipelineStep
+              updateStep(agent, {
+                status: "skipped",
+                message: (data.message as string) || "Skipped",
+              })
               break
             }
 
@@ -134,6 +148,7 @@ export default function InvoicePage() {
         console.error("Process error:", err)
       } finally {
         setIsProcessing(false)
+        setActiveStepId(null)
       }
     },
     [updateStep],
@@ -204,7 +219,11 @@ export default function InvoicePage() {
 
             {/* Center: Pipeline */}
             <div className="flex min-w-0 flex-1 items-center justify-center overflow-y-auto border-r">
-              <PipelineVisualizer steps={steps} />
+              <PipelineVisualizer
+                steps={steps}
+                activeStepId={activeStepId}
+                isProcessing={isProcessing}
+              />
             </div>
 
             {/* Right: Results + source document */}

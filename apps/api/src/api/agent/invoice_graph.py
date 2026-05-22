@@ -32,7 +32,9 @@ class InvoiceState(TypedDict):
     dedup_exact_result: dict | None
     validation_result: dict | None
     anomaly_result: dict | None
+    embedding_stored: bool
     report: dict | None
+    skipped_steps: Annotated[list[str], operator.add]
     current_step: str
     agent_log: Annotated[list[dict], operator.add]
 
@@ -56,11 +58,20 @@ def build_invoice_graph(pool):
             )
         else:
             msg = "No duplicate file hash in history"
-        return {
+        out: dict = {
             "dedup_file_result": result.model_dump(),
             "current_step": "dedup_file",
             "agent_log": [_log("DeDup File", msg, "warning" if result.is_duplicate else "success")],
         }
+        if result.is_duplicate:
+            out["skipped_steps"] = [
+                "extract",
+                "dedup_exact",
+                "validate",
+                "anomaly_detect",
+                "embed",
+            ]
+        return out
 
     def after_dedup_file(state: InvoiceState) -> str:
         result = state.get("dedup_file_result") or {}
@@ -102,11 +113,14 @@ def build_invoice_graph(pool):
             )
         else:
             msg = "No matching invoice in history (number, date, amount, filename)"
-        return {
+        out: dict = {
             "dedup_exact_result": result.model_dump(),
             "current_step": "dedup_exact",
             "agent_log": [_log("DeDup MCP", msg, "warning" if result.is_duplicate else "success")],
         }
+        if result.is_duplicate:
+            out["skipped_steps"] = ["validate", "anomaly_detect", "embed"]
+        return out
 
     def after_dedup_exact(state: InvoiceState) -> str:
         result = state.get("dedup_exact_result") or {}
@@ -148,6 +162,35 @@ def build_invoice_graph(pool):
             ],
         }
 
+    async def embed_node(state: InvoiceState) -> dict:
+        extracted = ExtractedInvoice(**(state.get("extracted_invoice") or {}))
+        try:
+            embedding = await embed_text(state["raw_text"])
+            await store_embedding(
+                pool,
+                state["raw_text"],
+                embedding,
+                {
+                    "invoice_number": extracted.invoice_number,
+                    "vendor_name": extracted.vendor_name,
+                    "total_amount": extracted.total_amount,
+                },
+            )
+            msg = f"Stored vector embedding ({len(embedding)} dims) for RAG search"
+            status = "success"
+            stored = True
+        except Exception:
+            logger.exception("Failed to store embedding")
+            msg = "Embedding storage failed"
+            status = "error"
+            stored = False
+
+        return {
+            "embedding_stored": stored,
+            "current_step": "embed",
+            "agent_log": [_log("Embeddings", msg, status)],
+        }
+
     async def respond_node(state: InvoiceState) -> dict:
         extracted = ExtractedInvoice(**(state.get("extracted_invoice") or {}))
         dedup_f = DuplicationResult(**(state.get("dedup_file_result") or {}))
@@ -160,17 +203,6 @@ def build_invoice_graph(pool):
         is_duplicate = dedup_f.is_duplicate or dedup_e.is_duplicate
         try:
             if not is_duplicate and state.get("extracted_invoice"):
-                embedding = await embed_text(state["raw_text"])
-                await store_embedding(
-                    pool,
-                    state["raw_text"],
-                    embedding,
-                    {
-                        "invoice_number": extracted.invoice_number,
-                        "vendor_name": extracted.vendor_name,
-                        "total_amount": extracted.total_amount,
-                    },
-                )
                 await store_in_history(
                     pool,
                     extracted,
@@ -181,7 +213,7 @@ def build_invoice_graph(pool):
                     file_name=state.get("file_name", ""),
                 )
         except Exception:
-            logger.exception("Failed to persist invoice data")
+            logger.exception("Failed to persist invoice history")
 
         status = "success" if "Approve" in report.decision else ("error" if "Reject" in report.decision else "warning")
         return {
@@ -198,6 +230,7 @@ def build_invoice_graph(pool):
     graph.add_node("dedup_exact", dedup_exact_node)
     graph.add_node("validate", validate_node)
     graph.add_node("anomaly_detect", anomaly_node)
+    graph.add_node("embed", embed_node)
     graph.add_node("respond", respond_node)
 
     graph.add_edge(START, "dedup_file")
@@ -213,7 +246,8 @@ def build_invoice_graph(pool):
         {"validate": "validate", "respond": "respond"},
     )
     graph.add_edge("validate", "anomaly_detect")
-    graph.add_edge("anomaly_detect", "respond")
+    graph.add_edge("anomaly_detect", "embed")
+    graph.add_edge("embed", "respond")
     graph.add_edge("respond", END)
 
     return graph.compile()

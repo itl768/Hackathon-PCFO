@@ -91,9 +91,10 @@ export type PipelineStep =
   | "dedup_exact"
   | "validate"
   | "anomaly_detect"
+  | "embed"
   | "respond"
 
-export type StepStatus = "idle" | "running" | "success" | "warning" | "error"
+export type StepStatus = "idle" | "running" | "success" | "warning" | "error" | "skipped"
 
 export interface PipelineStepState {
   id: PipelineStep

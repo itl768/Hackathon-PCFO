@@ -1,6 +1,6 @@
 import { createParser } from "eventsource-parser"
 
-import type { HistoryEntry, SampleInvoice } from "@/lib/invoice-types"
+import type { HistoryEntry, InvoiceHistoryDetail, LineItem, SampleInvoice } from "@/lib/invoice-types"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
@@ -26,6 +26,38 @@ export async function fetchHistory(): Promise<HistoryEntry[]> {
   const res = await fetch(`${API_URL}/api/invoice/history`)
   if (!res.ok) throw new Error("Failed to fetch history")
   return res.json()
+}
+
+export async function fetchHistoryInvoice(id: number): Promise<InvoiceHistoryDetail> {
+  const res = await fetch(`${API_URL}/api/invoice/history/${id}`)
+  if (!res.ok) throw new Error("Failed to fetch invoice")
+  return res.json()
+}
+
+export async function updateHistoryInvoice(
+  id: number,
+  body: Omit<InvoiceHistoryDetail, "id" | "status" | "risk_score" | "file_name" | "processed_at">,
+): Promise<InvoiceHistoryDetail> {
+  const res = await fetch(`${API_URL}/api/invoice/history/${id}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error("Failed to update invoice")
+  return res.json()
+}
+
+export function emptyLineItem(): LineItem {
+  return {
+    gl_account: null,
+    description: "",
+    quantity: 1,
+    unit_price: 0,
+    net_amount: 0,
+    vat_rate: 0,
+    vat_amount: 0,
+    line_total: 0,
+  }
 }
 
 export interface InvoiceSSEEvent {

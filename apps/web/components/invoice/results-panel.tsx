@@ -127,10 +127,14 @@ function ExtractedDataTab({ report }: { report: ProcessingReport }) {
       <div className="grid grid-cols-2 gap-2">
         <Field label="Vendor" value={inv.vendor_name} />
         <Field label="Invoice #" value={inv.invoice_number} />
+        <Field label="Payment ref." value={inv.payment_reference} />
+        <Field label="IBAN" value={inv.vendor_iban} />
+        <Field label="VAT no." value={inv.vendor_vat_number} />
+        <Field label="Country" value={inv.vendor_country} />
         <Field label="Date" value={inv.invoice_date} />
         <Field label="Due Date" value={inv.due_date} />
         <Field label="Currency" value={inv.currency} />
-        <Field label="Terms" value={inv.payment_terms} />
+        <Field label="VAT reversed" value={inv.vat_reversed ? "Yes" : "No"} />
       </div>
 
       {inv.line_items.length > 0 && (
@@ -142,9 +146,10 @@ function ExtractedDataTab({ report }: { report: ProcessingReport }) {
             <table className="w-full text-[10px]">
               <thead>
                 <tr className="border-b bg-muted/30">
+                  <th className="px-2 py-1 text-left font-medium">GL</th>
                   <th className="px-2 py-1 text-left font-medium">Description</th>
-                  <th className="px-2 py-1 text-right font-medium">Qty</th>
                   <th className="px-2 py-1 text-right font-medium">Net</th>
+                  <th className="px-2 py-1 text-right font-medium">VAT%</th>
                   <th className="px-2 py-1 text-right font-medium">VAT</th>
                   <th className="px-2 py-1 text-right font-medium">Total</th>
                 </tr>
@@ -152,9 +157,10 @@ function ExtractedDataTab({ report }: { report: ProcessingReport }) {
               <tbody>
                 {inv.line_items.map((item, i) => (
                   <tr key={i} className="border-b last:border-0">
+                    <td className="px-2 py-1 text-muted-foreground">{item.gl_account || "—"}</td>
                     <td className="px-2 py-1">{item.description}</td>
-                    <td className="px-2 py-1 text-right">{item.quantity}</td>
                     <td className="px-2 py-1 text-right">{item.net_amount.toFixed(2)}</td>
+                    <td className="px-2 py-1 text-right">{item.vat_rate ?? 0}%</td>
                     <td className="px-2 py-1 text-right">{item.vat_amount.toFixed(2)}</td>
                     <td className="px-2 py-1 text-right font-medium">
                       {item.line_total.toFixed(2)}

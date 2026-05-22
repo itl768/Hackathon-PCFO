@@ -7,17 +7,25 @@ from pydantic import BaseModel, Field
 
 
 class LineItem(BaseModel):
+    id: int | None = None
+    gl_account: str | None = None
     description: str = ""
     quantity: float = 1.0
     unit_price: float = 0.0
     net_amount: float = 0.0
+    vat_rate: float | None = None
     vat_amount: float = 0.0
     line_total: float = 0.0
 
 
 class ExtractedInvoice(BaseModel):
     vendor_name: str | None = None
+    vendor_iban: str | None = None
+    vendor_vat_number: str | None = None
+    vendor_country: str | None = None
+    vat_reversed: bool = False
     invoice_number: str | None = None
+    payment_reference: str | None = None
     invoice_date: str | None = None
     due_date: str | None = None
     line_items: list[LineItem] = Field(default_factory=list)
@@ -88,3 +96,44 @@ class ProcessingReport(BaseModel):
     dedup_exact: DuplicationResult | None = None
     validation: ValidationResult | None = None
     anomalies: AnomalyResult | None = None
+
+
+class InvoiceHistoryDetail(BaseModel):
+    id: int
+    invoice_number: str | None = None
+    payment_reference: str | None = None
+    vendor_name: str | None = None
+    vendor_iban: str | None = None
+    vendor_vat_number: str | None = None
+    vendor_country: str | None = None
+    vat_reversed: bool = False
+    invoice_date: str | None = None
+    due_date: str | None = None
+    subtotal: float | None = None
+    vat_total: float | None = None
+    total_amount: float | None = None
+    currency: str = "USD"
+    payment_terms: str | None = None
+    status: str = ""
+    risk_score: int | None = None
+    file_name: str | None = None
+    processed_at: str | None = None
+    line_items: list[LineItem] = Field(default_factory=list)
+
+
+class InvoiceHistoryUpdate(BaseModel):
+    invoice_number: str | None = None
+    payment_reference: str | None = None
+    vendor_name: str | None = None
+    vendor_iban: str | None = None
+    vendor_vat_number: str | None = None
+    vendor_country: str | None = None
+    vat_reversed: bool = False
+    invoice_date: str | None = None
+    due_date: str | None = None
+    subtotal: float | None = None
+    vat_total: float | None = None
+    total_amount: float | None = None
+    currency: str = "USD"
+    payment_terms: str | None = None
+    line_items: list[LineItem] = Field(default_factory=list)

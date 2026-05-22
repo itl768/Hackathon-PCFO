@@ -1,6 +1,6 @@
 "use client"
 
-import { FileText, MessageSquare, History, RotateCcw } from "lucide-react"
+import { FileText, MessageSquare, History, RotateCcw, Pencil } from "lucide-react"
 import { useCallback, useEffect, useState } from "react"
 
 import { AgentLog } from "@/components/invoice/agent-log"
@@ -8,6 +8,7 @@ import { DocumentPreview } from "@/components/invoice/document-preview"
 import { FileUpload } from "@/components/invoice/file-upload"
 import { InvoiceChat } from "@/components/invoice/invoice-chat"
 import { PipelineVisualizer } from "@/components/invoice/pipeline-visualizer"
+import { InvoiceEditDrawer } from "@/components/invoice/invoice-edit-drawer"
 import { ResultsPanel } from "@/components/invoice/results-panel"
 import { fetchHistory, fetchSamples, streamProcessInvoice } from "@/lib/invoice-api"
 import { revokeSourcePreview } from "@/lib/invoice-source"
@@ -44,6 +45,7 @@ export default function InvoicePage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [activeStepId, setActiveStepId] = useState<string | null>(null)
   const [source, setSource] = useState<InvoiceSource | null>(null)
+  const [editInvoiceId, setEditInvoiceId] = useState<number | null>(null)
   useEffect(() => {
     fetchSamples().then(setSamples).catch(console.error)
   }, [])
@@ -227,11 +229,11 @@ export default function InvoicePage() {
             </div>
 
             {/* Right: Results + source document */}
-            <div className="flex w-[min(920px,48vw)] shrink-0 border-l">
-              <div className="w-80 shrink-0 overflow-y-auto border-r">
+            <div className="flex w-[min(1120px,56vw)] min-w-[42rem] shrink-0 border-l">
+              <div className="w-[28rem] min-w-[24rem] shrink-0 overflow-y-auto border-r">
                 <ResultsPanel report={report} />
               </div>
-              <div className="min-w-0 flex-1">
+              <div className="min-w-[14rem] flex-1">
                 <DocumentPreview source={source} />
               </div>
             </div>
@@ -249,8 +251,16 @@ export default function InvoicePage() {
       )}
 
       {tab === "history" && (
-        <div className="min-h-0 flex-1 overflow-y-auto p-6">
-          <HistoryTable entries={history} />
+        <div className="relative min-h-0 flex-1 overflow-y-auto p-6">
+          <HistoryTable
+            entries={history}
+            onEdit={(id) => setEditInvoiceId(id)}
+          />
+          <InvoiceEditDrawer
+            invoiceId={editInvoiceId}
+            onClose={() => setEditInvoiceId(null)}
+            onSaved={() => fetchHistory().then(setHistory).catch(console.error)}
+          />
         </div>
       )}
     </div>
@@ -281,7 +291,13 @@ function TabButton({
   )
 }
 
-function HistoryTable({ entries }: { entries: HistoryEntry[] }) {
+function HistoryTable({
+  entries,
+  onEdit,
+}: {
+  entries: HistoryEntry[]
+  onEdit: (id: number) => void
+}) {
   if (entries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12">
@@ -309,11 +325,16 @@ function HistoryTable({ entries }: { entries: HistoryEntry[] }) {
             <th className="px-4 py-3 text-center font-medium">Risk</th>
             <th className="px-4 py-3 text-center font-medium">Status</th>
             <th className="px-4 py-3 text-right font-medium">Processed</th>
+            <th className="px-4 py-3 text-center font-medium w-16" />
           </tr>
         </thead>
         <tbody>
           {entries.map((e) => (
-            <tr key={e.id} className="border-b last:border-0 hover:bg-muted/10">
+            <tr
+              key={e.id}
+              className="cursor-pointer border-b last:border-0 hover:bg-muted/10"
+              onClick={() => onEdit(e.id)}
+            >
               <td className="px-4 py-3 font-mono text-xs">{e.invoice_number || "—"}</td>
               <td className="px-4 py-3">{e.vendor_name || "—"}</td>
               <td className="px-4 py-3 text-right font-mono">
@@ -331,6 +352,19 @@ function HistoryTable({ entries }: { entries: HistoryEntry[] }) {
               </td>
               <td className="px-4 py-3 text-right text-xs text-muted-foreground">
                 {e.processed_at ? new Date(e.processed_at).toLocaleString() : "—"}
+              </td>
+              <td className="px-4 py-3 text-center">
+                <button
+                  type="button"
+                  onClick={(ev) => {
+                    ev.stopPropagation()
+                    onEdit(e.id)
+                  }}
+                  className="inline-flex rounded-md border p-1.5 text-muted-foreground transition-colors hover:border-primary/50 hover:bg-primary/5 hover:text-primary"
+                  title="Edit invoice"
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
               </td>
             </tr>
           ))}

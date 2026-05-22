@@ -5,6 +5,7 @@ import { useCallback, useRef, useState } from "react"
 
 import type { InvoiceSource, SampleInvoice } from "@/lib/invoice-types"
 import { sourceFromFile, sourceFromText } from "@/lib/invoice-source"
+import { shortenFileName } from "@/lib/utils"
 
 interface FileUploadProps {
   samples: SampleInvoice[]
@@ -122,7 +123,12 @@ export function FileUpload({
           {selectedFile ? (
             <>
               <FileText className="mb-2 h-8 w-8 text-green-500" />
-              <p className="text-sm font-medium">{selectedFile.name}</p>
+              <p
+                className="max-w-full truncate px-2 text-sm font-medium"
+                title={selectedFile.name}
+              >
+                {shortenFileName(selectedFile.name)}
+              </p>
               <p className="text-xs text-muted-foreground">
                 {(selectedFile.size / 1024).toFixed(1)} KB
               </p>

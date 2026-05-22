@@ -12,42 +12,48 @@ from api.config import settings
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT_TEMPLATE = """You are an expert invoice data extractor. Given raw invoice text, extract ALL fields into structured JSON.
+SYSTEM_PROMPT_TEMPLATE = """You are an expert invoice data extractor. Given raw invoice text, extract the important business fields into structured JSON.
 
-Today's date is {today}. Use this when interpreting relative dates. Invoice dates should be realistic relative to today.
+Today's date is {today}. Invoice dates should be YYYY-MM-DD and realistic relative to today.
+Default currency if unclear: {default_currency}.
 
-The system's default currency is {default_currency}. If the invoice does not clearly state a currency, use {default_currency}.
-
-Return a JSON object with these exact fields:
-{
-  "vendor_name": "string or null",
-  "invoice_number": "string or null",
-  "invoice_date": "string (YYYY-MM-DD) or null",
-  "due_date": "string (YYYY-MM-DD) or null",
+Return JSON with these fields:
+{{
+  "vendor_name": "supplier company name or null",
+  "vendor_iban": "bank IBAN if present or null",
+  "vendor_vat_number": "supplier VAT/tax ID if present or null",
+  "vendor_country": "supplier country or null",
+  "vat_reversed": false,
+  "invoice_number": "invoice number or null",
+  "payment_reference": "payment reference / structured payment id or null",
+  "invoice_date": "YYYY-MM-DD or null",
+  "due_date": "YYYY-MM-DD or null",
   "line_items": [
-    {
-      "description": "string",
-      "quantity": number,
-      "unit_price": number,
-      "net_amount": number (price before VAT/tax),
-      "vat_amount": number (VAT/tax for this line),
-      "line_total": number (net + vat, total for this line)
-    }
+    {{
+      "gl_account": "general ledger / cost category if inferable else null",
+      "description": "line description",
+      "quantity": 1,
+      "unit_price": 0,
+      "net_amount": 0,
+      "vat_rate": 0,
+      "vat_amount": 0,
+      "line_total": 0
+    }}
   ],
-  "subtotal": number or null (sum before tax),
-  "vat_total": number or null (total VAT/tax amount),
-  "total_amount": number or null (final total including tax),
-  "currency": "string (e.g. USD, EUR, GBP)",
-  "payment_terms": "string or null"
-}
+  "subtotal": null,
+  "vat_total": null,
+  "total_amount": null,
+  "currency": "3-letter ISO code",
+  "payment_terms": "e.g. Net 30 or null"
+}}
 
 Rules:
-- Extract EVERY line item with per-item net, VAT, and total
-- If VAT is not explicitly listed per line, estimate from overall VAT rate
-- Use numbers (not strings) for all monetary values
-- If a field is not found, use null
-- Currency should be a 3-letter ISO code (USD, EUR, GBP, LKR, etc.)
-- Return ONLY valid JSON, no markdown or explanations"""
+- Extract EVERY line item (description, net amount excl. VAT, VAT rate %, VAT amount, line total)
+- vat_rate is percentage number (e.g. 21 for 21%, 0 for reverse-charge/zero-rated)
+- vat_reversed: true only if invoice explicitly indicates reverse charge / VAT shifted
+- Use numbers not strings for money fields
+- null for missing optional fields
+- Return ONLY valid JSON"""
 
 
 async def extract_invoice(raw_text: str, default_currency: str | None = None) -> ExtractedInvoice:

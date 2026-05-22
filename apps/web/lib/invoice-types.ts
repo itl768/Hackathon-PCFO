@@ -1,17 +1,25 @@
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
 export interface LineItem {
+  id?: number | null
+  gl_account: string | null
   description: string
   quantity: number
   unit_price: number
   net_amount: number
+  vat_rate: number | null
   vat_amount: number
   line_total: number
 }
 
 export interface ExtractedInvoice {
   vendor_name: string | null
+  vendor_iban: string | null
+  vendor_vat_number: string | null
+  vendor_country: string | null
+  vat_reversed: boolean
   invoice_number: string | null
+  payment_reference: string | null
   invoice_date: string | null
   due_date: string | null
   line_items: LineItem[]
@@ -118,6 +126,29 @@ export interface HistoryEntry {
   currency: string | null
   invoice_date: string | null
   processed_at: string | null
+}
+
+export interface InvoiceHistoryDetail {
+  id: number
+  invoice_number: string | null
+  payment_reference: string | null
+  vendor_name: string | null
+  vendor_iban: string | null
+  vendor_vat_number: string | null
+  vendor_country: string | null
+  vat_reversed: boolean
+  invoice_date: string | null
+  due_date: string | null
+  subtotal: number | null
+  vat_total: number | null
+  total_amount: number | null
+  currency: string
+  payment_terms: string | null
+  status: string
+  risk_score: number | null
+  file_name: string | null
+  processed_at: string | null
+  line_items: LineItem[]
 }
 
 export type InvoiceSource =

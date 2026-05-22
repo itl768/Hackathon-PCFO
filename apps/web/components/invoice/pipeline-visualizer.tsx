@@ -35,6 +35,17 @@ const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = 
   respond: Send,
 }
 
+const STEP_ORDER = [
+  "doc_reader",
+  "dedup_file",
+  "extract",
+  "dedup_exact",
+  "validate",
+  "anomaly_detect",
+  "embed",
+  "respond",
+] as const
+
 function StatusIcon({ status }: { status: StepStatus }) {
   switch (status) {
     case "success":
@@ -95,24 +106,22 @@ function lineColor(status: StepStatus): string {
 }
 
 export function PipelineVisualizer({ steps, activeStepId, isProcessing }: PipelineVisualizerProps) {
-  const completed = steps.filter(
+  const stepMap = new Map(steps.map((s) => [s.id, s]))
+  const orderedSteps = STEP_ORDER.map((id) => stepMap.get(id)).filter(
+    (s): s is PipelineStepState => s != null,
+  )
+
+  const completed = orderedSteps.filter(
     (s) =>
       s.status === "success" ||
       s.status === "warning" ||
       s.status === "error" ||
       s.status === "skipped",
   ).length
-  const progress = steps.length > 0 ? Math.round((completed / steps.length) * 100) : 0
+  const progress =
+    orderedSteps.length > 0 ? Math.round((completed / orderedSteps.length) * 100) : 0
 
   const activeStep = steps.find((s) => s.id === activeStepId)
-  const mainSteps = steps.filter((s) => s.id !== "validate" && s.id !== "anomaly_detect")
-  const validateStep = steps.find((s) => s.id === "validate")
-  const anomalyStep = steps.find((s) => s.id === "anomaly_detect")
-  const respondStep = steps.find((s) => s.id === "respond")
-
-  const beforeParallel = mainSteps.filter(
-    (s) => s.id !== "respond" && s.id !== "validate" && s.id !== "anomaly_detect",
-  )
 
   return (
     <div className="flex h-full w-full max-w-xs flex-col items-center justify-center gap-0 py-4">
@@ -156,33 +165,18 @@ export function PipelineVisualizer({ steps, activeStepId, isProcessing }: Pipeli
         </div>
       )}
 
-      {beforeParallel.map((step, i) => (
+      {orderedSteps.map((step, i) => (
         <div key={step.id} className="flex flex-col items-center">
           <StepNode step={step} isActive={activeStepId === step.id} />
-          {i < beforeParallel.length - 1 && <ConnectorLine status={step.status} />}
+          {i < orderedSteps.length - 1 && (
+            <ConnectorLine
+              status={
+                step.status === "skipped" ? "skipped" : step.status
+              }
+            />
+          )}
         </div>
       ))}
-
-      {validateStep && anomalyStep && (
-        <>
-          <ConnectorLine status={beforeParallel[beforeParallel.length - 1]?.status ?? "idle"} />
-          <div className="flex items-start gap-5">
-            <div className="flex flex-col items-center">
-              <div className="mb-1 h-4 w-px bg-muted-foreground/20" />
-              <StepNode step={validateStep} isActive={activeStepId === validateStep.id} />
-            </div>
-            <div className="flex flex-col items-center">
-              <div className="mb-1 h-4 w-px bg-muted-foreground/20" />
-              <StepNode step={anomalyStep} isActive={activeStepId === anomalyStep.id} />
-            </div>
-          </div>
-          <div className="my-1 h-4 w-px bg-muted-foreground/20" />
-        </>
-      )}
-
-      {respondStep && (
-        <StepNode step={respondStep} isActive={activeStepId === respondStep.id} />
-      )}
     </div>
   )
 }

@@ -100,28 +100,15 @@ async def store_in_history(
     *,
     file_hash: str = "",
     file_name: str = "",
-) -> None:
-    async with pool.connection() as conn:
-        await conn.execute(
-            """
-            INSERT INTO invoice_history
-                (invoice_number, vendor_name, total_amount, vat_total,
-                 invoice_date, currency, status, risk_score, report_json,
-                 file_hash, file_name)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s)
-            """,
-            (
-                invoice.invoice_number,
-                invoice.vendor_name,
-                invoice.total_amount,
-                invoice.vat_total,
-                invoice.invoice_date,
-                invoice.currency,
-                status,
-                risk_score,
-                __import__("json").dumps(report_json),
-                file_hash or None,
-                file_name or None,
-            ),
-        )
-        await conn.commit()
+) -> int:
+    from api.agent.invoice_store import store_invoice_with_lines
+
+    return await store_invoice_with_lines(
+        pool,
+        invoice,
+        status,
+        risk_score,
+        report_json,
+        file_hash=file_hash,
+        file_name=file_name,
+    )

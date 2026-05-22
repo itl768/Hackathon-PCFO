@@ -4,6 +4,7 @@ import { FileImage, FileText, FileType } from "lucide-react"
 import { useEffect, useState } from "react"
 
 import type { InvoiceSource } from "@/lib/invoice-types"
+import { shortenFileName } from "@/lib/utils"
 
 interface DocumentPreviewProps {
   source: InvoiceSource | null
@@ -43,7 +44,9 @@ export function DocumentPreview({ source }: DocumentPreviewProps) {
       <>
         <FileType className="h-4 w-4 shrink-0 text-primary" />
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium">{source.fileName}</p>
+          <p className="truncate text-xs font-medium" title={source.fileName}>
+            {shortenFileName(source.fileName)}
+          </p>
           <p className="text-[10px] text-muted-foreground">PDF document</p>
         </div>
       </>
@@ -51,7 +54,9 @@ export function DocumentPreview({ source }: DocumentPreviewProps) {
       <>
         <FileImage className="h-4 w-4 shrink-0 text-primary" />
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium">{source.fileName}</p>
+          <p className="truncate text-xs font-medium" title={source.fileName}>
+            {shortenFileName(source.fileName)}
+          </p>
           <p className="text-[10px] text-muted-foreground">Image</p>
         </div>
       </>
@@ -59,7 +64,9 @@ export function DocumentPreview({ source }: DocumentPreviewProps) {
       <>
         <FileText className="h-4 w-4 shrink-0 text-primary" />
         <div className="min-w-0">
-          <p className="truncate text-xs font-medium">{source.fileName}</p>
+          <p className="truncate text-xs font-medium" title={source.fileName}>
+            {shortenFileName(source.fileName)}
+          </p>
           <p className="text-[10px] text-muted-foreground">{source.mimeType || "Document"}</p>
         </div>
       </>

@@ -5,8 +5,11 @@ import logging
 from datetime import date, timedelta
 from typing import AsyncGenerator
 
-from fastapi import APIRouter, File, Form, Request, UploadFile
+from fastapi import APIRouter, File, Form, HTTPException, Request, UploadFile
 from pydantic import BaseModel
+
+from api.agent.invoice_models import InvoiceHistoryUpdate
+from api.agent.invoice_store import get_invoice_detail, update_invoice
 from sse_starlette.sse import EventSourceResponse
 
 from api.agent.currency_utils import SUPPORTED_CURRENCIES, normalize_currency
@@ -188,6 +191,26 @@ async def get_history(request: Request):
         }
         for r in rows
     ]
+
+
+@router.get("/history/{invoice_id}")
+async def get_history_invoice(request: Request, invoice_id: int):
+    pool = request.app.state.invoice_pool
+    detail = await get_invoice_detail(pool, invoice_id)
+    if detail is None:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return detail.model_dump()
+
+
+@router.put("/history/{invoice_id}")
+async def update_history_invoice(
+    request: Request, invoice_id: int, body: InvoiceHistoryUpdate
+):
+    pool = request.app.state.invoice_pool
+    updated = await update_invoice(pool, invoice_id, body)
+    if updated is None:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    return updated.model_dump()
 
 
 @router.post("/process")

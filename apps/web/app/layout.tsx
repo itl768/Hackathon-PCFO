@@ -13,8 +13,8 @@ const fontMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: "Multi-Agent Starter",
-  description: "LangGraph-powered multi-agent chat interface",
+  title: "Pocket CFO — Invoice Processing",
+  description: "Multi-agent invoice processing workflow with pgvector deduplication",
 }
 
 export default function RootLayout({

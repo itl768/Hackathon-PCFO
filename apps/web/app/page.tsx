@@ -1,5 +1,5 @@
-import { ChatInterface } from "@/components/chat/chat-interface"
+import { redirect } from "next/navigation"
 
 export default function Page() {
-  return <ChatInterface />
+  redirect("/invoice")
 }

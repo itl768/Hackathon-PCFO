@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
@@ -57,10 +57,10 @@ services:
     build:
       context: ./apps/web
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
     restart: unless-stopped
     env_file: .env
-    environment:
-      NEXT_PUBLIC_API_URL: http://api:8000
     ports:
       - "3000:3000"
     depends_on:
@@ -68,8 +68,14 @@ services:
     develop:
       watch:
         - action: sync
-          path: ./apps/web/src
-          target: /app/src
+          path: ./apps/web/app
+          target: /app/app
+        - action: sync
+          path: ./apps/web/components
+          target: /app/components
+        - action: sync
+          path: ./apps/web/lib
+          target: /app/lib
         - action: rebuild
           path: ./apps/web/package.json
 

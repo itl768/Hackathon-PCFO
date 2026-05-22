@@ -5,60 +5,72 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from psycopg_pool import AsyncConnectionPool
 
 from api.agent.checkpointer import create_checkpointer
+from api.agent.db import init_invoice_tables
 from api.config import settings
 from api.routers import agent_router
+from api.routers.invoice import router as invoice_router
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup: initialise the Postgres checkpointer shared across all providers.
-    Shutdown: close the connection pool.
-    """
     logger.info("Starting up — initialising Postgres checkpointer…")
-    checkpointer, pool = await create_checkpointer()
-    # Store the checkpointer so each request can build the right provider graph
+    checkpointer, cp_pool = await create_checkpointer()
     app.state.checkpointer = checkpointer
-    logger.info("Checkpointer ready (provider graph built per-request)")
+    logger.info("Checkpointer ready")
+
+    logger.info("Creating invoice connection pool…")
+    invoice_pool = AsyncConnectionPool(
+        conninfo=settings.database_url,
+        max_size=10,
+        open=False,
+    )
+    await invoice_pool.open()
+    app.state.invoice_pool = invoice_pool
+
+    try:
+        await init_invoice_tables(invoice_pool)
+    except Exception:
+        logger.exception("Failed to initialize invoice tables — will retry on first request")
+
+    logger.info("Invoice pool ready")
 
     yield
 
-    logger.info("Shutting down — closing connection pool…")
-    await pool.close()
+    logger.info("Shutting down — closing connection pools…")
+    await invoice_pool.close()
+    await cp_pool.close()
 
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="Multi-Agent Starter API",
-        version="0.1.0",
-        description="FastAPI + LangGraph multi-agent backend",
+        title="Pocket CFO — Invoice Processing API",
+        version="1.0.0",
+        description="Multi-agent invoice processing workflow with pgvector deduplication",
         lifespan=lifespan,
     )
 
-    # ── CORS ──────────────────────────────────────────────────────────────────
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins_list,
+        allow_origins=["*"],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
 
-    # ── Routers ───────────────────────────────────────────────────────────────
     app.include_router(agent_router)
+    app.include_router(invoice_router)
 
-    # ── Health ────────────────────────────────────────────────────────────────
     @app.get("/api/health", tags=["health"])
     async def health():
         return {"status": "ok"}
 
-    # ── Providers ─────────────────────────────────────────────────────────────
     @app.get("/api/providers", tags=["providers"])
     async def providers():
-        """Return the list of supported LLM providers and the current default."""
         return {
             "providers": ["openai", "mistral"],
             "default": settings.llm_provider,

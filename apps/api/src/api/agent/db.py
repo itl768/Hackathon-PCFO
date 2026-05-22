@@ -31,8 +31,19 @@ async def init_invoice_tables(pool) -> None:
                 status TEXT NOT NULL,
                 risk_score INTEGER,
                 report_json JSONB,
+                file_hash TEXT,
+                file_name TEXT,
                 processed_at TIMESTAMPTZ DEFAULT NOW()
             )
         """)
+        await conn.execute(
+            "ALTER TABLE invoice_history ADD COLUMN IF NOT EXISTS file_hash TEXT"
+        )
+        await conn.execute(
+            "ALTER TABLE invoice_history ADD COLUMN IF NOT EXISTS file_name TEXT"
+        )
+        await conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_invoice_history_file_hash ON invoice_history (file_hash)"
+        )
         await conn.commit()
     logger.info("Invoice tables initialized (invoice_embeddings + invoice_history)")

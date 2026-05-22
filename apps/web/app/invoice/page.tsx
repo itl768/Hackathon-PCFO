@@ -9,8 +9,7 @@ import { FileUpload } from "@/components/invoice/file-upload"
 import { InvoiceChat } from "@/components/invoice/invoice-chat"
 import { PipelineVisualizer } from "@/components/invoice/pipeline-visualizer"
 import { ResultsPanel } from "@/components/invoice/results-panel"
-import { fetchHistory, fetchInvoiceSettings, fetchSamples, streamProcessInvoice } from "@/lib/invoice-api"
-import { loadStoredCurrency, saveStoredCurrency } from "@/lib/invoice-currency"
+import { fetchHistory, fetchSamples, streamProcessInvoice } from "@/lib/invoice-api"
 import { revokeSourcePreview } from "@/lib/invoice-source"
 import type {
   AgentLogEntry,
@@ -26,7 +25,7 @@ type Tab = "process" | "chat" | "history"
 
 const INITIAL_STEPS: PipelineStepState[] = [
   { id: "doc_reader", label: "Document Reader", status: "idle" },
-  { id: "dedup_vector", label: "DeDup (pgvector)", status: "idle" },
+  { id: "dedup_file", label: "DeDup (file hash)", status: "idle" },
   { id: "extract", label: "Extractor", status: "idle" },
   { id: "dedup_exact", label: "DeDup MCP (Postgres)", status: "idle" },
   { id: "validate", label: "Validator", status: "idle" },
@@ -43,22 +42,8 @@ export default function InvoicePage() {
   const [agentLog, setAgentLog] = useState<AgentLogEntry[]>([])
   const [isProcessing, setIsProcessing] = useState(false)
   const [source, setSource] = useState<InvoiceSource | null>(null)
-  const [defaultCurrency, setDefaultCurrency] = useState("USD")
-  const [currencyOptions, setCurrencyOptions] = useState<string[]>(["USD", "EUR", "GBP", "LKR"])
-
   useEffect(() => {
     fetchSamples().then(setSamples).catch(console.error)
-    fetchInvoiceSettings()
-      .then((s) => {
-        setCurrencyOptions(s.supported_currencies)
-        setDefaultCurrency(loadStoredCurrency(s.default_currency))
-      })
-      .catch(console.error)
-  }, [])
-
-  const handleCurrencyChange = useCallback((code: string) => {
-    setDefaultCurrency(code)
-    saveStoredCurrency(code)
   }, [])
 
   useEffect(() => {
@@ -101,7 +86,7 @@ export default function InvoicePage() {
   }, [source])
 
   const handleProcess = useCallback(
-    async (payload: { file?: File; text?: string; currency?: string }) => {
+    async (payload: { file?: File; text?: string }) => {
       setSteps(INITIAL_STEPS)
       setReport(null)
       setAgentLog([])
@@ -211,9 +196,6 @@ export default function InvoicePage() {
             <div className="w-72 shrink-0 border-r">
               <FileUpload
                 samples={samples}
-                defaultCurrency={defaultCurrency}
-                currencyOptions={currencyOptions}
-                onCurrencyChange={handleCurrencyChange}
                 onProcess={handleProcess}
                 onSourceChange={handleSourceChange}
                 isProcessing={isProcessing}

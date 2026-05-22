@@ -84,7 +84,7 @@ class ProcessingReport(BaseModel):
     risk_score: int = 0
     next_steps: list[str] = Field(default_factory=list)
     extracted_invoice: ExtractedInvoice | None = None
-    dedup_vector: DuplicationResult | None = None
+    dedup_file: DuplicationResult | None = None
     dedup_exact: DuplicationResult | None = None
     validation: ValidationResult | None = None
     anomalies: AnomalyResult | None = None

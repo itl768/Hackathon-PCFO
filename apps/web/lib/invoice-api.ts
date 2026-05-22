@@ -1,9 +1,14 @@
 import { createParser } from "eventsource-parser"
 
-import type { InvoiceSettings } from "@/lib/invoice-currency"
 import type { HistoryEntry, SampleInvoice } from "@/lib/invoice-types"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
+
+export interface InvoiceSettings {
+  default_currency: string
+  supported_currencies: string[]
+  approval_threshold: number
+}
 
 export async function fetchInvoiceSettings(): Promise<InvoiceSettings> {
   const res = await fetch(`${API_URL}/api/invoice/settings`)
@@ -29,16 +34,13 @@ export interface InvoiceSSEEvent {
 }
 
 export async function* streamProcessInvoice(
-  payload: { file?: File; text?: string; currency?: string },
+  payload: { file?: File; text?: string },
 ): AsyncGenerator<InvoiceSSEEvent, void, unknown> {
   const formData = new FormData()
   if (payload.file) {
     formData.append("file", payload.file)
   } else if (payload.text) {
     formData.append("text", payload.text)
-  }
-  if (payload.currency) {
-    formData.append("currency", payload.currency)
   }
 
   const response = await fetch(`${API_URL}/api/invoice/process`, {
@@ -130,17 +132,6 @@ export async function* streamChat(message: string): AsyncGenerator<string, void,
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
 
-  const parser = createParser({
-    onEvent(event) {
-      try {
-        const data = JSON.parse(event.data)
-        if (data.token) tokenBuffer.push(data.token)
-      } catch {
-        /* skip */
-      }
-    },
-  })
-
   const tokenBuffer: string[] = []
   let resolveNext: ((value: IteratorResult<string>) => void) | null = null
   let done = false
@@ -154,7 +145,6 @@ export async function* streamChat(message: string): AsyncGenerator<string, void,
     }
   }
 
-  const origPush = parser
   const liveParser = createParser({
     onEvent(event) {
       try {

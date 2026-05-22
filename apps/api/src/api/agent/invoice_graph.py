@@ -9,7 +9,7 @@ from langgraph.graph import END, START, StateGraph
 from typing_extensions import TypedDict
 
 from api.agent.dedup_mcp import check_exact_duplicate, store_in_history
-from api.agent.deduplication import check_vector_duplicate, embed_text, store_embedding
+from api.agent.deduplication import check_file_hash_duplicate, embed_text, store_embedding
 from api.agent.invoice_models import (
     AnomalyResult,
     DuplicationResult,
@@ -17,6 +17,7 @@ from api.agent.invoice_models import (
     ValidationResult,
 )
 from api.agent.responder import generate_report
+from api.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -24,9 +25,9 @@ logger = logging.getLogger(__name__)
 class InvoiceState(TypedDict):
     raw_text: str
     file_name: str
+    content_hash: str
     default_currency: str
-    embedding: list[float]
-    dedup_vector_result: dict | None
+    dedup_file_result: dict | None
     extracted_invoice: dict | None
     dedup_exact_result: dict | None
     validation_result: dict | None
@@ -46,24 +47,23 @@ def _log(agent: str, message: str, status: str = "info") -> dict:
 
 
 def build_invoice_graph(pool):
-    async def dedup_vector_node(state: InvoiceState) -> dict:
-        embedding = await embed_text(state["raw_text"])
-        result = await check_vector_duplicate(pool, embedding)
-        msg = (
-            f"Duplicate found (similarity: {result.similarity_score:.2f}, "
-            f"matched: {result.matched_invoice_number or 'N/A'})"
-            if result.is_duplicate
-            else f"No duplicates found (max similarity: {result.similarity_score:.2f})"
-        )
+    async def dedup_file_node(state: InvoiceState) -> dict:
+        result = await check_file_hash_duplicate(pool, state.get("content_hash", ""))
+        if result.is_duplicate:
+            msg = (
+                f"Duplicate file (hash match, invoice: "
+                f"{result.matched_invoice_number or 'N/A'})"
+            )
+        else:
+            msg = "No duplicate file hash in history"
         return {
-            "embedding": embedding,
-            "dedup_vector_result": result.model_dump(),
-            "current_step": "dedup_vector",
-            "agent_log": [_log("DeDup Vector", msg, "warning" if result.is_duplicate else "success")],
+            "dedup_file_result": result.model_dump(),
+            "current_step": "dedup_file",
+            "agent_log": [_log("DeDup File", msg, "warning" if result.is_duplicate else "success")],
         }
 
-    def after_dedup_vector(state: InvoiceState) -> str:
-        result = state.get("dedup_vector_result") or {}
+    def after_dedup_file(state: InvoiceState) -> str:
+        result = state.get("dedup_file_result") or {}
         return "respond" if result.get("is_duplicate") else "extract"
 
     async def extract_node(state: InvoiceState) -> dict:
@@ -71,7 +71,7 @@ def build_invoice_graph(pool):
 
         invoice = await extract_invoice(
             state["raw_text"],
-            default_currency=state.get("default_currency"),
+            default_currency=state.get("default_currency") or settings.invoice_default_currency,
         )
         n = len(invoice.line_items)
         return {
@@ -88,16 +88,29 @@ def build_invoice_graph(pool):
 
     async def dedup_exact_node(state: InvoiceState) -> dict:
         invoice = ExtractedInvoice(**(state["extracted_invoice"] or {}))
-        result = await check_exact_duplicate(pool, invoice)
+        result = await check_exact_duplicate(
+            pool,
+            invoice,
+            file_name=state.get("file_name", ""),
+            content_hash=state.get("content_hash", ""),
+        )
         if result.is_duplicate:
-            msg = f"Exact match found (invoice: {result.matched_invoice_number})"
+            method = result.method
+            msg = (
+                f"Duplicate ({method}): matched invoice "
+                f"{result.matched_invoice_number or 'N/A'}"
+            )
         else:
-            msg = "No exact match in history"
+            msg = "No matching invoice in history (number, date, amount, filename)"
         return {
             "dedup_exact_result": result.model_dump(),
             "current_step": "dedup_exact",
             "agent_log": [_log("DeDup MCP", msg, "warning" if result.is_duplicate else "success")],
         }
+
+    def after_dedup_exact(state: InvoiceState) -> str:
+        result = state.get("dedup_exact_result") or {}
+        return "respond" if result.get("is_duplicate") else "validate"
 
     async def validate_node(state: InvoiceState) -> dict:
         from api.agent.validator import validate_invoice
@@ -137,19 +150,21 @@ def build_invoice_graph(pool):
 
     async def respond_node(state: InvoiceState) -> dict:
         extracted = ExtractedInvoice(**(state.get("extracted_invoice") or {}))
-        dedup_v = DuplicationResult(**(state.get("dedup_vector_result") or {}))
+        dedup_f = DuplicationResult(**(state.get("dedup_file_result") or {}))
         dedup_e = DuplicationResult(**(state.get("dedup_exact_result") or {}))
         validation = ValidationResult(**(state.get("validation_result") or {}))
         anomalies = AnomalyResult(**(state.get("anomaly_result") or {}))
 
-        report = generate_report(extracted, dedup_v, dedup_e, validation, anomalies)
+        report = generate_report(extracted, dedup_f, dedup_e, validation, anomalies)
 
+        is_duplicate = dedup_f.is_duplicate or dedup_e.is_duplicate
         try:
-            if state.get("embedding") and state.get("extracted_invoice"):
+            if not is_duplicate and state.get("extracted_invoice"):
+                embedding = await embed_text(state["raw_text"])
                 await store_embedding(
                     pool,
                     state["raw_text"],
-                    state["embedding"],
+                    embedding,
                     {
                         "invoice_number": extracted.invoice_number,
                         "vendor_name": extracted.vendor_name,
@@ -157,7 +172,13 @@ def build_invoice_graph(pool):
                     },
                 )
                 await store_in_history(
-                    pool, extracted, report.decision, report.risk_score, report.model_dump()
+                    pool,
+                    extracted,
+                    report.decision,
+                    report.risk_score,
+                    report.model_dump(),
+                    file_hash=state.get("content_hash", ""),
+                    file_name=state.get("file_name", ""),
                 )
         except Exception:
             logger.exception("Failed to persist invoice data")
@@ -172,21 +193,25 @@ def build_invoice_graph(pool):
         }
 
     graph = StateGraph(InvoiceState)
-    graph.add_node("dedup_vector", dedup_vector_node)
+    graph.add_node("dedup_file", dedup_file_node)
     graph.add_node("extract", extract_node)
     graph.add_node("dedup_exact", dedup_exact_node)
     graph.add_node("validate", validate_node)
     graph.add_node("anomaly_detect", anomaly_node)
     graph.add_node("respond", respond_node)
 
-    graph.add_edge(START, "dedup_vector")
+    graph.add_edge(START, "dedup_file")
     graph.add_conditional_edges(
-        "dedup_vector",
-        after_dedup_vector,
+        "dedup_file",
+        after_dedup_file,
         {"extract": "extract", "respond": "respond"},
     )
     graph.add_edge("extract", "dedup_exact")
-    graph.add_edge("dedup_exact", "validate")
+    graph.add_conditional_edges(
+        "dedup_exact",
+        after_dedup_exact,
+        {"validate": "validate", "respond": "respond"},
+    )
     graph.add_edge("validate", "anomaly_detect")
     graph.add_edge("anomaly_detect", "respond")
     graph.add_edge("respond", END)

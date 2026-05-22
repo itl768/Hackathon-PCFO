@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 from api.agent.currency_utils import SUPPORTED_CURRENCIES, normalize_currency
+from api.agent.deduplication import compute_content_hash
 from api.agent.document_reader import read_document
 from api.agent.invoice_graph import build_invoice_graph
 from api.config import settings
@@ -184,14 +185,14 @@ async def process_invoice(
     request: Request,
     file: UploadFile | None = File(None),
     text: str | None = Form(None),
-    currency: str | None = Form(None),
 ):
     pool = request.app.state.invoice_pool
-    default_currency = normalize_currency(currency, settings.invoice_default_currency)
+    default_currency = normalize_currency(None, settings.invoice_default_currency)
 
     async def event_generator() -> AsyncGenerator[dict, None]:
         raw_text = ""
         file_name = "text-input"
+        content_hash = ""
 
         if file and file.filename:
             file_name = file.filename
@@ -201,6 +202,7 @@ async def process_invoice(
             }
             try:
                 file_bytes = await file.read()
+                content_hash = compute_content_hash(file_bytes)
                 raw_text = await read_document(
                     file_bytes, file.content_type or "application/octet-stream", file_name
                 )
@@ -226,6 +228,7 @@ async def process_invoice(
         elif text:
             raw_text = text
             file_name = "pasted-text"
+            content_hash = compute_content_hash(text.encode("utf-8"))
             yield {
                 "event": "step_start",
                 "data": json.dumps({"agent": "doc_reader", "message": "Processing pasted text..."}),
@@ -248,9 +251,9 @@ async def process_invoice(
         input_state = {
             "raw_text": raw_text,
             "file_name": file_name,
+            "content_hash": content_hash,
             "default_currency": default_currency,
-            "embedding": [],
-            "dedup_vector_result": None,
+            "dedup_file_result": None,
             "extracted_invoice": None,
             "dedup_exact_result": None,
             "validation_result": None,

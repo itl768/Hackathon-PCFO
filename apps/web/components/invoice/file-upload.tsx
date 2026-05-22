@@ -3,25 +3,18 @@
 import { Upload, FileText, Sparkles } from "lucide-react"
 import { useCallback, useRef, useState } from "react"
 
-import { CurrencySelector } from "@/components/invoice/currency-selector"
 import type { InvoiceSource, SampleInvoice } from "@/lib/invoice-types"
 import { sourceFromFile, sourceFromText } from "@/lib/invoice-source"
 
 interface FileUploadProps {
   samples: SampleInvoice[]
-  defaultCurrency: string
-  currencyOptions: string[]
-  onCurrencyChange: (code: string) => void
-  onProcess: (payload: { file?: File; text?: string; currency?: string }) => void
+  onProcess: (payload: { file?: File; text?: string }) => void
   onSourceChange?: (source: InvoiceSource | null) => void
   isProcessing: boolean
 }
 
 export function FileUpload({
   samples,
-  defaultCurrency,
-  currencyOptions,
-  onCurrencyChange,
   onProcess,
   onSourceChange,
   isProcessing,
@@ -68,10 +61,10 @@ export function FileUpload({
   const handleProcess = () => {
     if (mode === "upload" && selectedFile) {
       onSourceChange?.(sourceFromFile(selectedFile))
-      onProcess({ file: selectedFile, currency: defaultCurrency })
+      onProcess({ file: selectedFile })
     } else if (mode === "paste" && pastedText.trim()) {
       onSourceChange?.(sourceFromText(pastedText))
-      onProcess({ text: pastedText, currency: defaultCurrency })
+      onProcess({ text: pastedText })
     }
   }
 
@@ -83,7 +76,6 @@ export function FileUpload({
         Invoice Input
       </h3>
 
-      {/* Mode Toggle */}
       <div className="flex rounded-lg border bg-muted/30 p-0.5">
         <button
           onClick={() => setMode("upload")}
@@ -158,14 +150,6 @@ export function FileUpload({
         />
       )}
 
-      <CurrencySelector
-        value={defaultCurrency}
-        options={currencyOptions}
-        onChange={onCurrencyChange}
-        disabled={isProcessing}
-      />
-
-      {/* Sample Selector */}
       {samples.length > 0 && (
         <div>
           <p className="mb-1.5 text-xs font-medium text-muted-foreground">Try a sample:</p>
@@ -187,7 +171,6 @@ export function FileUpload({
         </div>
       )}
 
-      {/* Process Button */}
       <button
         onClick={handleProcess}
         disabled={!canProcess || isProcessing}

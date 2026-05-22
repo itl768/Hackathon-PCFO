@@ -71,7 +71,7 @@ export interface ProcessingReport {
   risk_score: number
   next_steps: string[]
   extracted_invoice: ExtractedInvoice | null
-  dedup_vector: DuplicationResult | null
+  dedup_file: DuplicationResult | null
   dedup_exact: DuplicationResult | null
   validation: ValidationResult | null
   anomalies: AnomalyResult | null
@@ -86,7 +86,7 @@ export interface SampleInvoice {
 
 export type PipelineStep =
   | "doc_reader"
-  | "dedup_vector"
+  | "dedup_file"
   | "extract"
   | "dedup_exact"
   | "validate"

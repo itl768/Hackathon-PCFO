@@ -12,13 +12,13 @@ from api.agent.invoice_models import (
 
 def generate_report(
     extracted: ExtractedInvoice,
-    dedup_vector: DuplicationResult,
+    dedup_file: DuplicationResult,
     dedup_exact: DuplicationResult,
     validation: ValidationResult,
     anomalies: AnomalyResult,
 ) -> ProcessingReport:
-    if dedup_vector.is_duplicate or dedup_exact.is_duplicate:
-        dup_source = dedup_vector if dedup_vector.is_duplicate else dedup_exact
+    if dedup_file.is_duplicate or dedup_exact.is_duplicate:
+        dup_source = dedup_file if dedup_file.is_duplicate else dedup_exact
         decision = ApprovalStatus.DUPLICATE_REJECT.value
         confidence = "high"
         summary = (
@@ -85,7 +85,7 @@ def generate_report(
         summary=summary,
         agent_outputs={
             "document_reader": "Text extracted successfully",
-            "dedup_vector": dedup_vector.model_dump(),
+            "dedup_file": dedup_file.model_dump(),
             "extractor": {
                 "line_items": len(extracted.line_items),
                 "vendor": extracted.vendor_name,
@@ -100,7 +100,7 @@ def generate_report(
         risk_score=anomalies.risk_score,
         next_steps=next_steps,
         extracted_invoice=extracted,
-        dedup_vector=dedup_vector,
+        dedup_file=dedup_file,
         dedup_exact=dedup_exact,
         validation=validation,
         anomalies=anomalies,

@@ -21,7 +21,7 @@ interface PipelineVisualizerProps {
 
 const STEP_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   doc_reader: FileSearch,
-  dedup_vector: Fingerprint,
+  dedup_file: Fingerprint,
   extract: FileText,
   dedup_exact: Database,
   validate: ShieldCheck,

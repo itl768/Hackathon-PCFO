@@ -1,6 +1,12 @@
 import { createParser } from "eventsource-parser"
 
-import type { HistoryEntry, InvoiceHistoryDetail, LineItem, SampleInvoice } from "@/lib/invoice-types"
+import type {
+  HistoryEntry,
+  InvoiceHistoryDetail,
+  InvoiceHistoryUpdate,
+  LineItem,
+  SampleInvoice,
+} from "@/lib/invoice-types"
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"
 
@@ -36,7 +42,7 @@ export async function fetchHistoryInvoice(id: number): Promise<InvoiceHistoryDet
 
 export async function updateHistoryInvoice(
   id: number,
-  body: Omit<InvoiceHistoryDetail, "id" | "status" | "risk_score" | "file_name" | "processed_at">,
+  body: InvoiceHistoryUpdate,
 ): Promise<InvoiceHistoryDetail> {
   const res = await fetch(`${API_URL}/api/invoice/history/${id}`, {
     method: "PUT",

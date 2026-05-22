@@ -152,6 +152,24 @@ export interface InvoiceHistoryDetail {
   line_items: LineItem[]
 }
 
+export interface InvoiceHistoryUpdate {
+  invoice_number: string | null
+  payment_reference: string | null
+  vendor_name: string | null
+  vendor_iban: string | null
+  vendor_vat_number: string | null
+  vendor_country: string | null
+  vat_reversed: boolean
+  invoice_date: string | null
+  due_date: string | null
+  subtotal: number | null
+  vat_total: number | null
+  total_amount: number | null
+  currency: string
+  payment_terms: string | null
+  line_items: LineItem[]
+}
+
 export type InvoiceSource =
   | {
       kind: "file"

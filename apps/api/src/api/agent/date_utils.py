@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 ALLOWED_FUTURE_DAYS = 30
-ALLOWED_PAST_DAYS = 365
+ALLOWED_PAST_DAYS = 1000
 
 
 def today() -> date:

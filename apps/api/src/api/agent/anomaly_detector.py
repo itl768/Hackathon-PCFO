@@ -86,16 +86,6 @@ def _rule_based_flags(invoice: ExtractedInvoice, validation: ValidationResult) -
             )
         )
 
-    if invoice.total_amount is not None and invoice.total_amount > 0:
-        if invoice.total_amount % 1000 == 0 and invoice.total_amount >= 5000:
-            flags.append(
-                AnomalyFlag(
-                    flag_type="round_number_total",
-                    severity="low",
-                    description=f"Total amount is a round number ({invoice.total_amount:,.2f})",
-                )
-            )
-
     for i, li in enumerate(invoice.line_items):
         if li.quantity <= 0:
             flags.append(
@@ -158,9 +148,10 @@ SYSTEM_PROMPT_TEMPLATE = """You are a financial fraud and anomaly detection spec
 Today's reference date is {today} (use this for all date comparisons — do NOT assume a different year).
 
 Analyze the invoice and validation results. Look for:
-- Round-number padding, unusual amounts, date anomalies relative to {today}
+- Unusual amounts, date anomalies relative to {today}
 - Missing fields, vendor oddities, quantity/price inconsistencies
 - Patterns suggesting fraud or data entry errors
+- Do not flag amounts solely because they are round numbers
 
 Return JSON only:
 {{

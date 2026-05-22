@@ -65,7 +65,7 @@ Bank: HSBC UK | Account: 12345678 | Sort: 40-20-10""",
     {
         "id": "anomalous",
         "name": "Anomalous Invoice (Flagged)",
-        "description": "Line total mismatch, missing due date, round-number padding",
+        "description": "Line total mismatch, missing due date, validation failures",
         "text": """INVOICE
 
 Vendor: QuickBill Corp
@@ -85,7 +85,7 @@ Subtotal: $10,000.00
 VAT: $1,000.00
 TOTAL: $12,000.00
 
-NOTE: Due date not specified. Round payment preferred.""",
+NOTE: Due date not specified.""",
     },
     {
         "id": "high_value",

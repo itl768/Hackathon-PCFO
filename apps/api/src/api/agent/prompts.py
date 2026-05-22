@@ -277,7 +277,7 @@ Evaluate in order:
    - A due date AFTER {today} is normal (payment not yet due) — do NOT flag it
    - Flag due date BEFORE {today} as overdue / payment deadline passed (use flag_type due_date_overdue)
    - Do NOT flag a due date merely because it is after the invoice date
-   - Invoice date far in future or more than one year before {today}
+   - Invoice date far in future (relative to {today})
    - Due date before invoice date is always invalid
    - Service periods that do not align with invoice date
 

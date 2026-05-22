@@ -8,13 +8,9 @@ from openai import AsyncOpenAI
 
 from api.agent.date_utils import (
     ALLOWED_FUTURE_DAYS,
-    ALLOWED_PAST_DAYS,
-    STALE_INVOICE_DAYS,
     is_before_reference,
-    is_more_than_days_before_reference,
     parse_date,
     today,
-    today_iso,
 )
 from api.agent.invoice_models import (
     AnomalyFlag,
@@ -54,26 +50,6 @@ def _rule_based_flags(invoice: ExtractedInvoice, validation: ValidationResult) -
                 flag_type="invoice_date_slightly_future",
                 severity="medium",
                 description=f"Invoice date {inv_date.isoformat()} is after today ({ref.isoformat()})",
-            )
-        )
-
-    if inv_date and is_more_than_days_before_reference(inv_date, ALLOWED_PAST_DAYS, ref):
-        flags.append(
-            AnomalyFlag(
-                flag_type="invoice_date_stale",
-                severity="medium",
-                description=f"Invoice date is older than {ALLOWED_PAST_DAYS} days",
-            )
-        )
-    elif inv_date and is_more_than_days_before_reference(inv_date, STALE_INVOICE_DAYS, ref):
-        flags.append(
-            AnomalyFlag(
-                flag_type="invoice_date_old",
-                severity="medium",
-                description=(
-                    f"Invoice date {inv_date.isoformat()} is more than one year before today "
-                    f"({ref.isoformat()})"
-                ),
             )
         )
 

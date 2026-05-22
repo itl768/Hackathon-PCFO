@@ -84,9 +84,6 @@ function mapValidationRule(alerts: FieldAlerts, rule: ValidationRule) {
     case "Invoice Number Present":
       addAlert(alerts, "invoice_number", "validation", sev, msg)
       break
-    case "Invoice Date In Allowed Range":
-      addAlert(alerts, "invoice_date", "validation", sev, msg)
-      break
     case "Due Date Not Before Invoice Date":
       addAlert(alerts, "due_date", "validation", sev, msg)
       addAlert(alerts, "invoice_date", "validation", sev, msg)
@@ -125,8 +122,6 @@ function mapAnomalyFlag(alerts: FieldAlerts, flag: AnomalyFlag) {
   switch (flag.flag_type) {
     case "invoice_date_future":
     case "invoice_date_slightly_future":
-    case "invoice_date_stale":
-    case "invoice_date_old":
       addAlert(alerts, "invoice_date", "anomaly", sev, msg)
       break
     case "due_date_overdue":
@@ -204,19 +199,6 @@ function applyAuthoritativeDateAlerts(alerts: FieldAlerts, inv: ExtractedInvoice
     })
     if (dueAlert.messages.length === 0) {
       delete alerts.due_date
-    }
-  }
-
-  if (invDate) {
-    const daysOld = (ref.getTime() - invDate.getTime()) / 86400000
-    if (daysOld > 365) {
-      addAlert(
-        alerts,
-        "invoice_date",
-        "anomaly",
-        "medium",
-        `Invoice date is more than one year before today (${refLabel}).`,
-      )
     }
   }
 

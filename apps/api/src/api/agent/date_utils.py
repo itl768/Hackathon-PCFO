@@ -3,8 +3,6 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 ALLOWED_FUTURE_DAYS = 30
-ALLOWED_PAST_DAYS = 1000
-STALE_INVOICE_DAYS = 365
 
 
 def today() -> date:
@@ -25,27 +23,6 @@ def parse_date(value: str | None) -> date | None:
         return None
 
 
-def is_date_in_range(invoice_date: date | None, reference: date | None = None) -> tuple[bool, str]:
-    if invoice_date is None:
-        return True, "Invoice date not set — skipped"
-
-    ref = reference or today()
-    future_limit = ref + timedelta(days=ALLOWED_FUTURE_DAYS)
-    past_limit = ref - timedelta(days=ALLOWED_PAST_DAYS)
-
-    if invoice_date > future_limit:
-        return False, (
-            f"Invoice date {invoice_date.isoformat()} is more than {ALLOWED_FUTURE_DAYS} days "
-            f"after reference date {ref.isoformat()}"
-        )
-    if invoice_date < past_limit:
-        return False, (
-            f"Invoice date {invoice_date.isoformat()} is more than {ALLOWED_PAST_DAYS} days "
-            f"before reference date {ref.isoformat()}"
-        )
-    return True, f"Invoice date {invoice_date.isoformat()} is within allowed range (ref: {ref.isoformat()})"
-
-
 def is_after_reference(value: date | None, reference: date | None = None) -> bool:
     if value is None:
         return False
@@ -58,14 +35,3 @@ def is_before_reference(value: date | None, reference: date | None = None) -> bo
         return False
     ref = reference or today()
     return value < ref
-
-
-def is_more_than_days_before_reference(
-    value: date | None,
-    days: int,
-    reference: date | None = None,
-) -> bool:
-    if value is None:
-        return False
-    ref = reference or today()
-    return value < ref - timedelta(days=days)

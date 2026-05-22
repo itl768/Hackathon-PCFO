@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from api.agent.date_utils import is_date_in_range, parse_date, today
+from api.agent.date_utils import parse_date
 from api.agent.invoice_models import ExtractedInvoice, ValidationResult, ValidationRule
 
 TOLERANCE = 0.02
@@ -13,7 +13,6 @@ def _approx_equal(a: float, b: float, base: float = 1.0) -> bool:
 
 def validate_invoice(invoice: ExtractedInvoice) -> ValidationResult:
     rules: list[ValidationRule] = []
-    ref = today()
     inv_date = parse_date(invoice.invoice_date)
     due_date = parse_date(invoice.due_date)
 
@@ -115,15 +114,6 @@ def validate_invoice(invoice: ExtractedInvoice) -> ValidationResult:
             message="Invoice number is set"
             if invoice.invoice_number
             else "Invoice number is missing",
-        )
-    )
-
-    in_range, range_msg = is_date_in_range(inv_date, ref)
-    rules.append(
-        ValidationRule(
-            rule_name="Invoice Date In Allowed Range",
-            passed=in_range,
-            message=range_msg,
         )
     )
 
